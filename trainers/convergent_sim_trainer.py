@@ -1,12 +1,12 @@
 # trainers/convergent_sim_trainer.py
 
-import os
 import torch
-import torch.optim as optim
+import mlflow
 
 from models.convergent_sim import SimEncoder
 from models.criterions.simsiam_loss import SimSiamLoss
 from utils.model_utils import ModelUtils
+from utils.logger import MLFlowLogger
 from .tools import Optimizer, Scheduler, EarlyStopper
 
 
@@ -38,23 +38,22 @@ class ConvergentSimTrainer:
         # criterion
         self.simsiam_criterion = SimSiamLoss().to(self.device)
 
-        # optimizer
-        self.optimizer = optim.Adam(
-            self.encoder.parameters(),
-            lr=float(cfg["learning_rate"]),
-            weight_decay=float(cfg["weight_decay"])
-        )
+        # optimizer, scheduler
+        self.optimizer = Optimizer(self.cfg).get_optimizer(self.encoder.parameters())
+        self.scheduler = Scheduler(self.cfg).get_scheduler(self.optimizer)
 
-        # (optional) scheduler
-        self.scheduler = optim.lr_scheduler.StepLR(
-            self.optimizer,
-            step_size=cfg["scheduler"]["args"]["step_size"],
-            gamma=cfg["scheduler"]["args"]["gamma"]
-        )
+        # model utils: name, save manage
+        self.model_utils = ModelUtils(self.cfg)
+
+        # early stopper
+        self.early_stopper = EarlyStopper(self.cfg).get_early_stopper()
 
         # params
         self.epochs = cfg["epochs"]
-        # self.lambda_sim = cfg["train"].get("lambda_sim", 1.0)
+        self.log_every = cfg.get("log_every", 1)
+        self.save_every = cfg.get("save_every", 1)
+
+        # 
 
     def train_one_epoch(self, train_loader, epoch: int):
         self.encoder.train()
@@ -75,7 +74,6 @@ class ConvergentSimTrainer:
 
             # loss
             sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-            # loss = self.lambda_sim * sim_loss
             loss = sim_loss
 
             # backprop
@@ -85,10 +83,13 @@ class ConvergentSimTrainer:
             total_loss += loss.item()
 
         # scheduler step
-        self.scheduler.step()
+        if self.scheduler is not None:
+            self.scheduler.step()
 
         avg_loss = total_loss / len(train_loader)
         print(f"[Epoch {epoch+1}] simsiam_loss: {avg_loss:.4f}")
+
+        return avg_loss
 
     def validate(self, eval_loader, epoch: int):
         self.encoder.eval()
@@ -109,23 +110,34 @@ class ConvergentSimTrainer:
         avg_loss = total_loss / len(eval_loader)
         print(f"[Val Epoch {epoch+1}] simsiam_loss: {avg_loss:.4f}")
 
+        return avg_loss
+
     def save_checkpoint(self, epoch: int):
-        save_path = os.path.join(self.cfg["mlflow_log_dir"], f"checkpoint_{epoch+1}.pth")
+        file_name = self.model_utils.get_model_name(epoch + 1)
+        ckpt_path = self.model_utils.get_model_path(file_name)
+
         torch.save({
             'epoch': epoch + 1,
             'encoder_state_dict': self.encoder.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict()
-        }, save_path)
-        print(f"Checkpoint saved to {save_path}")
+        }, ckpt_path)
+        
+        print(f"Checkpoint saved to {ckpt_path}")
 
-    def run(self, train_loader, eval_loader=None):
+    def run(self, exp_class, train_loader, eval_loader=None):
         for epoch in range(self.epochs):
-            self.train_one_epoch(train_loader, epoch)
+            train_loss = self.train_one_epoch(train_loader, epoch)  # train
 
-            if eval_loader is not None and (epoch + 1) % self.cfg["log_every"] == 0:
-                self.validate(eval_loader, epoch)
+            val_loss = None
+            if eval_loader is not None and (epoch + 1) % self.log_every == 0:
+                val_loss = self.validate(eval_loader, epoch)  # eval
+
+            if val_loss is not None and self.early_stopper is not None:
+                if self.early_stopper.step(val_loss):  # early stopping check(use val loss)
+                    print("Early stopping triggered. Stop training.")
+                    break
 
             # checkpoint
-            if (epoch + 1) % self.cfg["save_every"] == 0:
+            if (epoch + 1) % self.save_every == 0:
                 self.save_checkpoint(epoch)
 

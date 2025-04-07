@@ -9,9 +9,6 @@ model:
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
-# mlflow dir path
-mlflow_log_dir: ./logs/mlruns
-
 # train eval parameters
 log_every: 1
 save_every: 1
@@ -48,6 +45,11 @@ early_stopper:
   mode: min  # min, max
   min_delta: 0.0
   baseline: None  # None, float
+
+# mlflow parameters
+mlflow:
+  use: True
+  tracking_uri: file:./logs/mlruns  # using "file:" save mlruns to local dir
 
 # mlp parameters
 mlp:
