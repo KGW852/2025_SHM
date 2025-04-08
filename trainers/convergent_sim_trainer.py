@@ -1,7 +1,7 @@
 # trainers/convergent_sim_trainer.py
 
 import torch
-import mlflow
+from tqdm import tqdm
 
 from models.convergent_sim import SimEncoder
 from models.criterions.simsiam_loss import SimSiamLoss
@@ -15,9 +15,10 @@ class ConvergentSimTrainer:
     SimSiam Domain Adaptation trainer
     Args:
         cfg (dict): config dictionary
+        mlflow_logger (MLFlowLogger): MLflow logger(define param in 'main.py')
         device (torch.device): cuda or cpu
     """
-    def __init__(self, cfg: dict, device: torch.device = None):
+    def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, device: torch.device = None):
         self.cfg = cfg
         self.device = device if device is not None else torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu'
@@ -38,29 +39,33 @@ class ConvergentSimTrainer:
         # criterion
         self.simsiam_criterion = SimSiamLoss().to(self.device)
 
-        # optimizer, scheduler
+        # optimizer, scheduler, early stopper
         self.optimizer = Optimizer(self.cfg).get_optimizer(self.encoder.parameters())
         self.scheduler = Scheduler(self.cfg).get_scheduler(self.optimizer)
-
-        # model utils: name, save manage
-        self.model_utils = ModelUtils(self.cfg)
-
-        # early stopper
         self.early_stopper = EarlyStopper(self.cfg).get_early_stopper()
+
+        # utils: model manage, mlflow
+        self.model_utils = ModelUtils(self.cfg)
+        self.mlflow_logger = mlflow_logger
 
         # params
         self.epochs = cfg["epochs"]
         self.log_every = cfg.get("log_every", 1)
         self.save_every = cfg.get("save_every", 1)
 
-        # 
+        # run_name: model_name
+        self.run_name = self.model_utils.get_model_name()
 
-    def train_one_epoch(self, train_loader, epoch: int):
-        self.encoder.train()
-
+    def train_epoch(self, train_loader, epoch: int):
+        do_train = (epoch > 0)
+        if do_train:
+            self.encoder.train()
+        else:
+            self.encoder.eval()
         total_loss = 0.0
 
-        for batch_idx, data in enumerate(train_loader):
+        pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
+        for batch_idx, data in pbar:
             (x_s, y_s), (x_t, y_t) = data  # x_s, x_t: (B, C, T)
             x_s = x_s.to(self.device)
             y_s = y_s.to(self.device)
@@ -77,26 +82,31 @@ class ConvergentSimTrainer:
             loss = sim_loss
 
             # backprop
-            loss.backward()
-            self.optimizer.step()
+            if do_train:
+                loss.backward()
+                self.optimizer.step()
 
+            # stats
             total_loss += loss.item()
+            pbar.set_postfix({"loss": loss.item()})
 
         # scheduler step
         if self.scheduler is not None:
             self.scheduler.step()
 
         avg_loss = total_loss / len(train_loader)
-        print(f"[Epoch {epoch+1}] simsiam_loss: {avg_loss:.4f}")
+        print(f"[Train] [Epoch {epoch}/{self.epochs}] "
+              f"SimSiam: {avg_loss:.4f}")
 
         return avg_loss
 
-    def validate(self, eval_loader, epoch: int):
+    def eval_epoch(self, eval_loader, epoch: int):
         self.encoder.eval()
-
         total_loss = 0.0
+
+        pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
-            for batch_idx, data in enumerate(eval_loader):
+            for batch_idx, data in pbar:
                 (x_s, y_s), (x_t, y_t) = data
                 x_s = x_s.to(self.device)
                 y_s = y_s.to(self.device)
@@ -105,39 +115,68 @@ class ConvergentSimTrainer:
 
                 e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
                 sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-                total_loss += sim_loss.item()
+                loss = sim_loss
+
+                total_loss += loss.item()
+                pbar.set_postfix({"loss": loss.item()})
 
         avg_loss = total_loss / len(eval_loader)
-        print(f"[Val Epoch {epoch+1}] simsiam_loss: {avg_loss:.4f}")
+        print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
+              f"SimSiam: {avg_loss:.4f}")
 
         return avg_loss
 
     def save_checkpoint(self, epoch: int):
-        file_name = self.model_utils.get_model_name(epoch + 1)
-        ckpt_path = self.model_utils.get_model_path(file_name)
+        file_name = self.model_utils.get_file_name(epoch)
+        ckpt_path = self.model_utils.get_file_path(file_name)
 
         torch.save({
-            'epoch': epoch + 1,
+            'epoch': epoch,
             'encoder_state_dict': self.encoder.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict()
         }, ckpt_path)
         
-        print(f"Checkpoint saved to {ckpt_path}")
+        print(f"Checkpoint saved: {ckpt_path}")
 
-    def run(self, exp_class, train_loader, eval_loader=None):
-        for epoch in range(self.epochs):
-            train_loss = self.train_one_epoch(train_loader, epoch)  # train
+        # MLflow artifact upload
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.log_artifact(ckpt_path, artifact_path="checkpoints")
 
-            val_loss = None
-            if eval_loader is not None and (epoch + 1) % self.log_every == 0:
-                val_loss = self.validate(eval_loader, epoch)  # eval
+    def run(self, train_loader, eval_loader=None, log_params_dict=None):
+        """
+        Training loop
+        Args:
+            train_loader, eval_loader
+            log_params_dict (dict, optional): experiment parameters from main.py(expN)
+        """
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.start_run(run_name=self.run_name)
+            if log_params_dict is not None:
+                self.mlflow_logger.log_params(log_params_dict)
 
-            if val_loss is not None and self.early_stopper is not None:
-                if self.early_stopper.step(val_loss):  # early stopping check(use val loss)
-                    print("Early stopping triggered. Stop training.")
+        for epoch in range(self.epochs + 1):
+            train_loss = self.train_epoch(train_loader, epoch)  # train
+
+            eval_loss = None
+            if eval_loader is not None and epoch % self.log_every == 0:
+                eval_loss = self.eval_epoch(eval_loader, epoch)  # eval
+
+            # mlflow metrics log
+            if self.mlflow_logger is not None:
+                metrics = {"train_loss": train_loss}
+                if eval_loss is not None:
+                    metrics["eval_loss"] = eval_loss
+                self.mlflow_logger.log_metrics(metrics, step=epoch)
+
+            if eval_loss is not None and self.early_stopper is not None:  # early stopping check(use val loss)
+                if self.early_stopper.step(eval_loss):
+                    print(f"Early stopping triggered at epoch {epoch}.")
+                    self.save_checkpoint(epoch)
                     break
 
             # checkpoint
-            if (epoch + 1) % self.save_every == 0:
+            if (epoch % self.save_every) == 0:
                 self.save_checkpoint(epoch)
 
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.end_run()

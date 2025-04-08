@@ -1,45 +1,88 @@
 # main.py
 
-import types
 import argparse
-
+import types
+import random
+import numpy as np
 import torch
 
 from configs.config import Config
 from dataloaders.data_loader import get_train_loader, get_eval_loader
 from trainers.convergent_sim_trainer import ConvergentSimTrainer
+from utils.logger import MLFlowLogger
 
-def main():
+
+def set_random_seed(seed: int):
     """
-    main: Config load → dataloader → trainer
+    random seed
     """
-    # config load (exp1, exp2.)
-    config_obj = Config.exp1()  # exp1
-    cfg = config_obj.config_dict  # dict shape
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
-    # device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Dataloader
-    args = types.SimpleNamespace()
-    args.train_src_dir = cfg["train"]["src_dir"]
-    args.train_tgt_dir = cfg["train"]["tgt_dir"]
-    args.eval_src_dir = cfg["eval"]["src_dir"]
-    args.eval_tgt_dir = cfg["eval"]["tgt_dir"]
-
-    args.data_name = cfg["data_name"]
-
-    args.batch_size = cfg["batch_size"]
-    args.n_workers = cfg["n_workers"]
-    args.match_strategy = cfg["match_strategy"]
+def parse_args():
+    """
+    CLI arguments parsing. 
+    Specify the experiment (expN) to run with --exp. If unspecified (None), follow the exp_method in the YAML.
+    """
+    parser = argparse.ArgumentParser(description="Run convergent sim training.")
+    parser.add_argument("--exp", type=str, default="exp1", help="Select which exp to run (e.g. exp1, exp2) or 'all' to run all.")
+    args = parser.parse_args()
+    return args
 
 
-    train_loader = get_train_loader(args)
-    eval_loader = get_eval_loader(args)
+def run_experiment(exp_name: str):
+    """
+    Call the provided Config.expN() function to execute training
+    Args:
+        exp_name (str): 'exp1', 'exp2' ...
+    """
+    print(f"[INFO] Start experiment: {exp_name}")
+
+    # config
+    config_instance = getattr(Config, exp_name)()  # ex. Config.exp1(), Config.exp2()
+    cfg = config_instance.config_dict
+
+    # seed
+    seed = cfg.get("seed", 42)
+    set_random_seed(seed)
+
+    # MLflow logger
+    use_mlflow = cfg.get("mlflow", {}).get("use", False)
+    if use_mlflow:
+        tracking_uri = cfg.get("mlflow", {}).get("tracking_uri", "file:./mlruns")
+        experiment_name = cfg.get("exp_name", exp_name)
+        mlflow_logger = MLFlowLogger(tracking_uri=tracking_uri, experiment_name=experiment_name)
+    else:
+        mlflow_logger = None
 
     # trainer
-    trainer = ConvergentSimTrainer(cfg, device=device)
-    trainer.run(train_loader, eval_loader=eval_loader)
+    device_str = cfg.get("device", "cuda")
+    device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
+
+    trainer = ConvergentSimTrainer(cfg, mlflow_logger, device=device)
+    train_loader = get_train_loader(cfg)
+    eval_loader = get_eval_loader(cfg)
+    trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
+
+
+def main():
+    args = parse_args()
+
+    # Automatically find the list of expN methods inside Config
+    # Filter only methods starting with 'exp' from dir(Config)
+    all_exps = [fn for fn in dir(Config) if fn.startswith("exp") and callable(getattr(Config, fn))]
+    all_exps.sort()
+
+    if args.exp == "all":
+        for exp_name in all_exps:
+            run_experiment(exp_name)
+    else:
+        if args.exp not in all_exps:
+            raise ValueError(f"Experiment method '{args.exp}' not found in Config.")
+        run_experiment(args.exp)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,9 @@
 # configs/default.yaml
 
+# experiment set
+exp_name: exp1  # all, exp1, exp2...
+seed: 42
+
 # path
 model:
   data_name: esc50
@@ -23,7 +27,7 @@ device: cuda
 epochs: 10
 
 loss:
-  recon_loss: mse
+  recon_loss: mae
 
 optimizer:
   type: adam

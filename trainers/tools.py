@@ -14,8 +14,9 @@ class Optimizer:
     def get_optimizer(self, model_params):
         opt_cfg = self.cfg["optimizer"]
         opt_type = opt_cfg["type"].lower()
-        lr = opt_cfg["learning_rate"]
-        weight_decay = opt_cfg.get("weight_decay", 0.0)
+
+        lr = float(opt_cfg["learning_rate"])
+        weight_decay = float(opt_cfg.get("weight_decay", 0.0))
         momentum = opt_cfg.get("momentum", 0.0)
 
         if opt_type == "adam":

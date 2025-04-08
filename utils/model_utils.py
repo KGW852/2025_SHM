@@ -17,7 +17,7 @@ class ModelUtils():
         self.model_base_dir = None
 
         if isinstance(cfg, dict):  # dict
-            self.model_name = cfg['model']['name']
+            self.model_name = cfg['model']['model_name']
             self.version = cfg['model']['version']
             self.suffix = cfg['model']['suffix']
             self.model_base_dir = cfg['model']['base_dir']
@@ -27,12 +27,16 @@ class ModelUtils():
             self.suffix = cfg.model.suffix
             self.model_base_dir = cfg.model.base_dir
 
-    def get_model_name(self, epoch: int) -> str:
+    def get_model_name(self) -> str:
+        model_name = f"{self.model_name}_v{self.version}"
+        return model_name
+    
+    def get_file_name(self, epoch: int) -> str:
         file_name = f"checkpoint_epoch{epoch}"
         file_name += self.suffix
         return file_name
     
-    def get_model_path(self, file_name: str)-> str:
+    def get_file_path(self, file_name: str)-> str:
         save_dir = f"{self.model_base_dir}/{self.model_name}/v{self.version}"
         os.makedirs(save_dir, exist_ok=True)
 
