@@ -1,0 +1,1 @@
+{'data_name': 'esc50', 'model_name': 'convergent_sim', 'trainer': 'convergent_sim_trainer', 'version': 1.1, 'suffix': '.pth', 'base_dir': './logs'}

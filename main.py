@@ -22,17 +22,6 @@ def set_random_seed(seed: int):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def parse_args():
-    """
-    CLI arguments parsing. 
-    Specify the experiment (expN) to run with --exp. If unspecified (None), follow the exp_method in the YAML.
-    """
-    parser = argparse.ArgumentParser(description="Run convergent sim training.")
-    parser.add_argument("--exp", type=str, default="exp1", help="Select which exp to run (e.g. exp1, exp2) or 'all' to run all.")
-    args = parser.parse_args()
-    return args
-
-
 def run_experiment(exp_name: str):
     """
     Call the provided Config.expN() function to execute training
@@ -53,7 +42,11 @@ def run_experiment(exp_name: str):
     use_mlflow = cfg.get("mlflow", {}).get("use", False)
     if use_mlflow:
         tracking_uri = cfg.get("mlflow", {}).get("tracking_uri", "file:./mlruns")
-        experiment_name = cfg.get("exp_name", exp_name)
+        cfg_exp_name = cfg.get("exp_name", None)
+        if cfg_exp_name == "all":
+            experiment_name = exp_name  # exp1, exp2 ...
+        else:
+            experiment_name = cfg_exp_name if cfg_exp_name else exp_name
         mlflow_logger = MLFlowLogger(tracking_uri=tracking_uri, experiment_name=experiment_name)
     else:
         mlflow_logger = None
@@ -69,20 +62,21 @@ def run_experiment(exp_name: str):
 
 
 def main():
-    args = parse_args()
+    cfg = Config.exp1().config_dict
+    exp_name_from_yaml = cfg.get("exp_name", "exp1")
 
     # Automatically find the list of expN methods inside Config
     # Filter only methods starting with 'exp' from dir(Config)
     all_exps = [fn for fn in dir(Config) if fn.startswith("exp") and callable(getattr(Config, fn))]
     all_exps.sort()
 
-    if args.exp == "all":
+    if exp_name_from_yaml == "all":
         for exp_name in all_exps:
             run_experiment(exp_name)
     else:
-        if args.exp not in all_exps:
-            raise ValueError(f"Experiment method '{args.exp}' not found in Config.")
-        run_experiment(args.exp)
+        if exp_name_from_yaml not in all_exps:
+            raise ValueError(f"Experiment method '{exp_name_from_yaml}' not found in Config.")
+        run_experiment(exp_name_from_yaml)
 
 
 if __name__ == "__main__":

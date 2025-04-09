@@ -22,6 +22,6 @@ class Config:
     def exp2(cls):
         cfg = parse_config()
         cfg["model"]["version"] = 1.1
-        cfg["epochs"] = 20
+        cfg["epochs"] = 3
         cfg["learning_rate"] = 5e-5
         return cls(config_dict=cfg)

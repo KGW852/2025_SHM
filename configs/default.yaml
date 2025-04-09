@@ -1,7 +1,7 @@
 # configs/default.yaml
 
 # experiment set
-exp_name: exp1  # all, exp1, exp2...
+exp_name: all  # all, exp1, exp2...
 seed: 42
 
 # path
@@ -24,7 +24,7 @@ match_strategy: sequential  # random, sequential, pairwise
 
 # train parameters
 device: cuda
-epochs: 10
+epochs: 2
 
 loss:
   recon_loss: mae
@@ -48,7 +48,7 @@ early_stopper:
   patience: 3
   mode: min  # min, max
   min_delta: 0.0
-  baseline: None  # None, float
+  baseline: 0.1  # None, float
 
 # mlflow parameters
 mlflow:

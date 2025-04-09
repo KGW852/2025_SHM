@@ -1,0 +1,1 @@
+{'in_dim': 128, 'proj_hidden_dim': 64, 'proj_out_dim': 64, 'pred_hidden_dim': 32, 'pred_out_dim': 64}

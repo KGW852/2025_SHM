@@ -5,4 +5,4 @@ data/ESC50/
 Kyoto-2016_AnoShift.tar
 
 # Ignore .pth files in the logs/ folder
-logs/*.pth
+logs/
