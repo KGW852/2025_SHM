@@ -43,7 +43,7 @@ def parse_config(default_config_path='configs/default.yaml'):
     default_cfg = read_config_file(default_config_path)
 
     # If data_name is set, additionally merge the dataset YAML
-    data_name = default_cfg.get('data_name', None)
+    data_name = default_cfg.get('model', {}).get('data_name', None)
     if data_name:
         dataset_cfg_path = os.path.join('configs', f'{data_name}.yaml')
         if os.path.exists(dataset_cfg_path):

@@ -104,7 +104,6 @@ class EarlyStopperMetric:
         baseline exists and mode='max', best_score may be less than or equal to the baseline
         baseline exists and mode='min', best_score may be greater than or equal to the baseline
         no baseline exists, set it to the current metric
-
         """
         if self.best_score is None:  # initial step or baseline set
             if self.baseline is not None:

@@ -13,6 +13,8 @@ test:
   tgt_dir: ./data/ESC50/test/test40
 
 # overide default.yaml
-model: convergent_sim
-loss: 
+model:
+  model_name: convergent_sim
+
+loss:
   recon_loss: mse

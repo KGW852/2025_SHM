@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/DongJak_Task2/logs/mlruns/272035589942859933/473befb967d04a17a4e40c555ade197d/artifacts
+end_time: 1744159882191
+entry_point_name: ''
+experiment_id: '272035589942859933'
+lifecycle_stage: active
+run_id: 473befb967d04a17a4e40c555ade197d
+run_name: convergent_sim_v1.0
+run_uuid: 473befb967d04a17a4e40c555ade197d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1744159811419
+status: 3
+tags: []
+user_id: KGW
