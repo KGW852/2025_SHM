@@ -84,3 +84,7 @@ sim:
   proj_out_dim: 64
   pred_hidden_dim: 32
   pred_out_dim: 64
+
+# cosine umap parameters
+umap:
+  n_neighbors:

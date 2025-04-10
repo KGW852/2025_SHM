@@ -57,15 +57,15 @@ def compute_cross_nn_distance(source_embeddings: torch.Tensor, target_embeddings
     }
     return result_dict
 
-
+"""
 if __name__ == "__main__":
     torch.manual_seed(42)
     
-    # 예시: 5차원 벡터를 갖는 소스 10개, 타깃 8개
+    # example: 5dim vectors, source 10EA, target 8EA.
     source_emb = torch.randn(10, 5)
     target_emb = torch.randn(8, 5)
     
     result = compute_cross_nn_distance(source_emb, target_emb)
     for k, v in result.items():
         print(f"{k}: {v}")
-
+"""
