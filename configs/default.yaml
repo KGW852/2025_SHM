@@ -91,4 +91,8 @@ umap:
   min_dist: 0.1
   n_components: 2
   random_state: 42
-  metric: correlation
+  metric: cosine
+
+# distribution parameters
+distribution:
+  percentile: 99

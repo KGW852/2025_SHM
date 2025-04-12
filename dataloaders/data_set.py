@@ -1,11 +1,11 @@
-# data_set.py
+# dataloaders/data_set.py
 import os
 import random
 import torch
 from torch.utils.data import Dataset
 
 from utils.csv_utils import read_csv
-from utils.label_utils import get_esc50_label, get_dongjak_label, get_anoshift_label
+from utils.label_utils import get_esc50_pseudo_label, get_dongjak_pseudo_label, get_anoshift_pseudo_label
 
 COLUMN_MAP = {
     'dongjak': (1, 2),
@@ -14,9 +14,9 @@ COLUMN_MAP = {
 }
 
 LABEL_FUNC_MAP = {
-    'dongjak': get_dongjak_label,
-    'esc50': get_esc50_label,
-    'anoshift': get_anoshift_label,
+    'dongjak': get_esc50_pseudo_label,
+    'esc50': get_dongjak_pseudo_label,
+    'anoshift': get_anoshift_pseudo_label,
 }
 
 
@@ -66,8 +66,8 @@ class CustomDataset(Dataset):
         if self.transform:  # transform
             data_tensor = self.transform(data_tensor)
 
-        label_value = self.label_func(csv_path)
-        label_tensor = torch.tensor(label_value, dtype=torch.long)
+        class_label, anomaly_label = self.label_func(csv_path)
+        label_tensor = torch.tensor([class_label, anomaly_label], dtype=torch.long)
 
         return data_tensor, label_tensor
     

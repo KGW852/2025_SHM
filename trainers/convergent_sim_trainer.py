@@ -86,13 +86,15 @@ class ConvergentSimTrainer:
             if do_train:
                 loss.backward()
                 self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
 
             # stats
             total_loss += loss.item()
             pbar.set_postfix({"loss": loss.item()})
-
+        
+        # scheduler
+        if do_train and (self.scheduler is not None):
+            self.scheduler.step()
+            
         avg_loss = total_loss / len(train_loader)
         print(f"[Train] [Epoch {epoch}/{self.epochs}] "
               f"SimSiam: {avg_loss:.4f}")
