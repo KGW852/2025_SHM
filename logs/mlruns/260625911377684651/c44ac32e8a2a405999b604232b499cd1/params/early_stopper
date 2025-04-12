@@ -1,1 +1,0 @@
-{'use': True, 'patience': 3, 'mode': 'min', 'min_delta': 0.0, 'baseline': 0.1}

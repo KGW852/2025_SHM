@@ -95,45 +95,45 @@ def get_eval_loader(cfg):
 
     return eval_loader
 
-def get_test_loader(args):
+def get_test_loader(cfg):
     """
     Get the test data loader.
     Args:
-        args (argparse.Namespace): command line arguments
+        cfg (argparse.Namespace): command line arguments
     """
     # Source (Test) directory
-    test_src_dir = args["test"]["src_dir"]
+    test_src_dir = cfg["test"]["src_dir"]
     source_file_list = os.listdir(test_src_dir)
     source_file_list.sort()
     source_file_list = [os.path.join(test_src_dir, f) for f in source_file_list]
 
     # Target (Test) directory
-    test_tgt_dir = args["test"]["tgt_dir"]
+    test_tgt_dir = cfg["test"]["tgt_dir"]
     target_file_list = os.listdir(test_tgt_dir)
     target_file_list.sort()
     target_file_list = [os.path.join(test_tgt_dir, f) for f in target_file_list]
 
     # Create datasets
     source_dataset = CustomDataset(
-        data_name=args["model"]["data_name"],
+        data_name=cfg["model"]["data_name"],
         file_paths=source_file_list,
         transform=None
     )
     target_dataset = CustomDataset(
-        data_name=args["model"]["data_name"],
+        data_name=cfg["model"]["data_name"],
         file_paths=target_file_list,
         transform=None
     )
     da_dataset = DomainDataset(
         source_dataset,
         target_dataset,
-        match_strategy=args["match_strategy"]
+        match_strategy=cfg["match_strategy"]
     )
     test_loader = DataLoader(
         da_dataset,
         batch_size=1,
         shuffle=False,
-        num_workers=args["n_workers"],
+        num_workers=cfg["n_workers"],
         drop_last=False
     )
 

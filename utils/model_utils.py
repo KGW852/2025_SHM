@@ -36,6 +36,11 @@ class ModelUtils():
         file_name += self.suffix
         return file_name
     
+    def get_save_dir(self):
+        save_dir = f"{self.model_base_dir}/{self.model_name}/v{self.version}"
+        os.makedirs(save_dir, exist_ok=True)
+        return save_dir
+    
     def get_file_path(self, file_name: str)-> str:
         save_dir = f"{self.model_base_dir}/{self.model_name}/v{self.version}"
         os.makedirs(save_dir, exist_ok=True)

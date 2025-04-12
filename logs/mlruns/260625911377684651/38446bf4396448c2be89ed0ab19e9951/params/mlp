@@ -1,1 +1,0 @@
-{'in_dim': 1024, 'in_hidden_dims': [512, 256], 'latent_dim': 128, 'out_hidden_dims': [128, 256, 512], 'out_channels': 2, 'out_seq_len': 512, 'dropout': 0.1}

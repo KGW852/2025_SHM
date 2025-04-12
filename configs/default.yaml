@@ -85,6 +85,10 @@ sim:
   pred_hidden_dim: 32
   pred_out_dim: 64
 
-# cosine umap parameters
+# umap parameters
 umap:
-  n_neighbors:
+  n_neighbors: 15
+  min_dist: 0.1
+  n_components: 2
+  random_state: 42
+  metric: correlation
