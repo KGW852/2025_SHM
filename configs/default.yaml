@@ -1,14 +1,17 @@
 # configs/default.yaml
 
 # experiment set
-exp_name: all  # all, exp1, exp2...
+exp_name: exp1  # all, exp1, exp2...
 seed: 42
 
 # path
 model:
   data_name: esc50
   model_name: convergent_sim
-  trainer: convergent_sim_trainer
+  trainer: convergent_sim_trainer.py
+  trainer_fn: ConvergentSimTrainer
+  evaluator: convergent_sim_evaluator.py
+  evaluator_fn: ConvergentSimEvaluator
   version: 1.0
   suffix: .pth
   base_dir: ./logs  # save model base dir

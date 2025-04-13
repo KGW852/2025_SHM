@@ -50,7 +50,6 @@ def get_train_loader(cfg):
 
     return train_loader
 
-
 def get_eval_loader(cfg):
     """
     Get the evaluation data loader.

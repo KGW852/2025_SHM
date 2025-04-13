@@ -7,8 +7,9 @@ import numpy as np
 import torch
 
 from configs.config import Config
-from dataloaders.data_loader import get_train_loader, get_eval_loader
+from dataloaders.data_loader import get_train_loader, get_eval_loader, get_test_loader
 from trainers.convergent_sim_trainer import ConvergentSimTrainer
+from evaluation.convergent_sim_evaluator import ConvergentSimEvaluator
 from utils.logger import MLFlowLogger
 
 
@@ -58,7 +59,14 @@ def run_experiment(exp_name: str):
     trainer = ConvergentSimTrainer(cfg, mlflow_logger, device=device)
     train_loader = get_train_loader(cfg)
     eval_loader = get_eval_loader(cfg)
-    trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
+    
+    run_id, last_saved_epoch = trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
+
+    # evaluator
+    evaluator = ConvergentSimEvaluator(cfg, mlflow_logger, run_id=run_id, last_epoch=last_saved_epoch, device=device)
+    test_loader = get_test_loader(cfg)
+
+    evaluator.run(eval_loader=eval_loader, test_loader=test_loader)
 
 
 def main():

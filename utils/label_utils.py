@@ -33,9 +33,9 @@ def get_anoshift_label(file_path):
 
 def get_esc50_pseudo_label(file_path: str):
     class_label = get_esc50_label(file_path)
-    if class_label in [47, 11]:
+    if class_label in [47, 40]:
         anomaly_label = 0
-    elif class_label == 40:
+    elif class_label == 11:
         anomaly_label = 1
     else:
         anomaly_label = -1

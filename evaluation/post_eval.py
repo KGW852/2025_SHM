@@ -77,14 +77,14 @@ class AnomalyScore(nn.Module):
 
 def find_best_threshold(scores: torch.Tensor, labels: torch.Tensor, num_steps: int = 100):
     """
-    Search for the threshold that maximizes a specific metric (e.g., F1) given scores and labels.
+    Search for the threshold that maximizes the AUC metric, given 'scores' and 'labels'.
     Args:
         scores: Shape (B,)
         labels: Shape (B,) (0 or 1)
         num_steps: Number of threshold candidates (consider performance for large datasets)
     Returns:
-        best_th (float): Threshold yielding the best F1
-        best_f1 (float): F1 score at the best threshold
+        best_th (float): threshold that yields the best AUC
+        best_auc (float): AUC value at that threshold
     """
     # convert scores to CPU tensor
     s_cpu = scores.detach().cpu()
@@ -95,20 +95,22 @@ def find_best_threshold(scores: torch.Tensor, labels: torch.Tensor, num_steps: i
     s_max = torch.max(s_cpu).item()
     if s_min == s_max:
         # if all scores are identical, the threshold is meaningless
-        return s_min, float(calc_f1((s_cpu > s_min).long(), l_cpu))
+        preds = (s_cpu > s_min).long()
+        auc_val = calc_auc(preds, l_cpu)
+        return s_min, float(auc_val)
 
     thresholds = torch.linspace(s_min, s_max, steps=num_steps)
     best_th = 0.0
-    best_f1 = 0.0
+    best_auc = 0.0
 
     for th in thresholds:
         preds = (s_cpu > th).long()
-        f1 = calc_f1(preds, l_cpu)
-        if f1 > best_f1:
-            best_f1 = f1
+        auc_val = calc_auc(preds, l_cpu)
+        if auc_val > best_auc:
+            best_auc = auc_val
             best_th = th.item()
     
-    return best_th, best_f1
+    return best_th, best_auc
 
 class AnomalyDetector:
     """
@@ -129,7 +131,7 @@ class AnomalyDetector:
         """
         self.anomaly_score_fn.fit_distribution(source_feats_normal, target_feats_normal)
 
-    def evaluate_simsiam(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor, labels: torch.Tensor):
+    def evaluate_simsiam(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor, anomaly_labels: torch.Tensor):
         """
         SimSiam-based anomaly score -> auto threshold -> (preds vs labels) -> metrics
         """
@@ -137,22 +139,22 @@ class AnomalyDetector:
         scores = self.anomaly_score_fn.calc_simsiam_anomaly_score(p1, z2, p2, z1)  # (B,)
 
         # find best threshold (F1-based)
-        best_th, best_f1 = find_best_threshold(scores, labels, num_steps=100)
+        best_th, best_auc = find_best_threshold(scores, anomaly_labels, num_steps=100)
 
         # Calculate predicted labels (0 or 1) using the threshold
         preds = (scores > best_th).long()  # (B,)
 
         # metric
-        acc   = calc_accuracy(preds, labels)
-        prec  = calc_precision(preds, labels)
-        rec   = calc_recall(preds, labels)
-        f1    = calc_f1(preds, labels)
-        auc_v = calc_auc(scores, labels)
+        acc   = calc_accuracy(preds, anomaly_labels)
+        prec  = calc_precision(preds, anomaly_labels)
+        rec   = calc_recall(preds, anomaly_labels)
+        f1    = calc_f1(preds, anomaly_labels)
+        auc_v = calc_auc(scores, anomaly_labels)
 
         # dict
         metrics_dict = {
             "BestThreshold": best_th,
-            "F1_at_BestTh": best_f1,   # Maximum F1 when finding the threshold
+            "AUC_at_BestTh": best_auc,
             "Accuracy": acc,
             "Precision": prec,
             "Recall": rec,
@@ -166,10 +168,10 @@ class AnomalyDetector:
         Distribution-based anomaly score -> auto threshold -> (preds vs labels) -> metrics
         """
         # anomaly score
-        distance = self.anomaly_score_fn.calc_distribution_distance(feats)  # (B,)
+        distance = self.anomaly_score_fn.calc_distribution_anomaly_score(feats)  # (B,)
 
         # find best threshold (F1-based)
-        best_th, best_f1 = find_best_threshold(distance, labels, num_steps=100)
+        best_th, best_auc = find_best_threshold(distance, labels, num_steps=100)
 
         preds = (distance > best_th).long()
         
@@ -182,7 +184,7 @@ class AnomalyDetector:
 
         metrics_dict = {
             "BestThreshold": best_th,
-            "F1_at_BestTh": best_f1,
+            "AUC_at_BestTh": best_auc,
             "Accuracy": acc,
             "Precision": prec,
             "Recall": rec,

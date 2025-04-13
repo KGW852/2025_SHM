@@ -3,7 +3,7 @@
 import os
 from utils.model_utils import ModelUtils
 
-from .modules.cos_nn_distance import compute_cross_nn_distance
+from .modules.sample_distance import compute_cross_nn_distance
 from .modules.umap import UMAP
 
 
@@ -57,7 +57,7 @@ def eval_latent_alignment(cfg, mlflow_logger, source_embeddings, target_embeddin
     )
 
     # Log the UMAP plot image to MLflow
-    mlflow_logger.log_artifact(umap_file)
+    mlflow_logger.log_artifact(umap_file, artifact_path="alignment")
 
     # Compute cosine nearest-neighbor distance metrics between source and target embeddings
     metrics = compute_cross_nn_distance(source_embeddings, target_embeddings)

@@ -21,9 +21,7 @@ class ConvergentSimTrainer:
     """
     def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, device: torch.device = None):
         self.cfg = cfg
-        self.device = device if device is not None else torch.device(
-            'cuda' if torch.cuda.is_available() else 'cpu'
-        )
+        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # model: MLPEncoder + SimSiam
         self.encoder = SimEncoder(
@@ -72,7 +70,7 @@ class ConvergentSimTrainer:
             y_s = y_s.to(self.device)
             x_t = x_t.to(self.device)
             y_t = y_t.to(self.device)
-
+            
             self.optimizer.zero_grad()
 
             # forward
@@ -169,7 +167,7 @@ class ConvergentSimTrainer:
         
         print(f"Checkpoint saved: {ckpt_path}")
 
-        # MLflow artifact upload
+        # mlflow artifact upload
         if self.mlflow_logger is not None:
             self.mlflow_logger.log_artifact(ckpt_path, artifact_path="checkpoints")
 
@@ -184,6 +182,8 @@ class ConvergentSimTrainer:
             self.mlflow_logger.start_run(run_name=self.run_name)
             if log_params_dict is not None:
                 self.mlflow_logger.log_params(log_params_dict)
+        
+        last_saved_epoch = None
 
         for epoch in range(self.epochs + 1):
             train_loss = self.train_epoch(train_loader, epoch)  # train
@@ -213,11 +213,24 @@ class ConvergentSimTrainer:
                 if self.early_stopper.step(eval_loss):
                     print(f"Early stopping triggered at epoch {epoch}.")
                     self.save_checkpoint(epoch)
+                    last_saved_epoch = epoch
                     break
 
             # checkpoint
             if (epoch % self.save_every) == 0:
                 self.save_checkpoint(epoch)
+                last_saved_epoch = epoch
 
+        # MLflow Registry final model and return run_id, last_saved_epoch
+        """
+        if self.mlflow_logger is not None and last_saved_epoch is not None:
+            final_ckpt_path = self.model_utils.get_file_path(self.model_utils.get_file_name(last_saved_epoch))
+            self.mlflow_logger.register_model(model_path=final_ckpt_path, model_name=self.run_name)
+        """
+        run_id = self.mlflow_logger.run_id if self.mlflow_logger is not None else None
+        return run_id, last_saved_epoch
+            
+        """
         if self.mlflow_logger is not None:
             self.mlflow_logger.end_run()
+        """

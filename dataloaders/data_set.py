@@ -14,8 +14,8 @@ COLUMN_MAP = {
 }
 
 LABEL_FUNC_MAP = {
-    'dongjak': get_esc50_pseudo_label,
-    'esc50': get_dongjak_pseudo_label,
+    'dongjak': get_dongjak_pseudo_label,
+    'esc50': get_esc50_pseudo_label,
     'anoshift': get_anoshift_pseudo_label,
 }
 
