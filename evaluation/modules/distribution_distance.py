@@ -1,4 +1,4 @@
-# evaluation/modules/distribution.py
+# evaluation/modules/distribution_distance.py
 
 import torch
 

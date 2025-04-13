@@ -96,3 +96,7 @@ umap:
 # distribution parameters
 distribution:
   percentile: 99
+
+# anomaly score metric
+anomaly:
+  method: simsiam  # simsiam, distribution

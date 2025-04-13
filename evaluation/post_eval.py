@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from evaluation.modules.distribution import get_boundary
+from evaluation.modules.distribution_distance import get_boundary
 from evaluation.modules.anomaly_metrics import calc_accuracy, calc_precision, calc_recall, calc_f1, calc_auc
 
 class AnomalyScore(nn.Module):
@@ -74,67 +74,85 @@ class AnomalyScore(nn.Module):
         anomaly_score = nn.functional.relu(distance - self.dist_threshold)
 
         return anomaly_score
+
+def find_best_threshold(scores: torch.Tensor, labels: torch.Tensor, num_steps: int = 100):
+    """
+    Search for the threshold that maximizes a specific metric (e.g., F1) given scores and labels.
+    Args:
+        scores: Shape (B,)
+        labels: Shape (B,) (0 or 1)
+        num_steps: Number of threshold candidates (consider performance for large datasets)
+    Returns:
+        best_th (float): Threshold yielding the best F1
+        best_f1 (float): F1 score at the best threshold
+    """
+    # convert scores to CPU tensor
+    s_cpu = scores.detach().cpu()
+    l_cpu = labels.detach().cpu()
+
+    # generate threshold candidates at uniform intervals within the min-max range
+    s_min = torch.min(s_cpu).item()
+    s_max = torch.max(s_cpu).item()
+    if s_min == s_max:
+        # if all scores are identical, the threshold is meaningless
+        return s_min, float(calc_f1((s_cpu > s_min).long(), l_cpu))
+
+    thresholds = torch.linspace(s_min, s_max, steps=num_steps)
+    best_th = 0.0
+    best_f1 = 0.0
+
+    for th in thresholds:
+        preds = (s_cpu > th).long()
+        f1 = calc_f1(preds, l_cpu)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_th = th.item()
     
+    return best_th, best_f1
+
 class AnomalyDetector:
     """
-    - AnomalyScore (SimSiam/Distribution 기반)로부터 anomaly score를 얻어온 뒤
-    - 실제 라벨과 비교하여 (Threshold > score ? 정상/이상) 예측 라벨을 결정
-    - anomaly_metrics.py의 함수들을 사용해 Accuracy, Precision, Recall, F1, AUC 등을 계산
+    Obtain anomaly scores from AnomalyScore (SimSiam/Distribution-based),
+    automatically find the best threshold using the data to determine (normal/anomaly) predicted labels,
+    and calculate Accuracy, Precision, Recall, F1, AUC using functions from anomaly_metrics.py.
     """
     def __init__(self, cfg):
         """
-        Args
-        ----
-        cfg : dict
-            설정/하이퍼파라미터 등을 담은 설정
-            예) cfg["evaluation"]["threshold_simsiam"] = 0.3
-                cfg["evaluation"]["threshold_distribution"] = 0.1
-                ...
+        cfg: Configuration dictionary
         """
         self.cfg = cfg
-        self.anomaly_score_fn = AnomalyScore(cfg)  # 위에서 정의한 클래스 사용
-        self.simsiam_threshold = cfg["evaluation"].get("threshold_simsiam", 0.5)
-        self.dist_threshold   = cfg["evaluation"].get("threshold_distribution", 0.0)
-        # dist_threshold는 fit_distribution으로 계산되므로, 여기서는 기본값만 가져오도록 하거나
-        # 또는 percentile 기반이므로 별도 설정은 안 해도 됩니다.
+        self.anomaly_score_fn = AnomalyScore(cfg)
 
     def fit_distribution(self, source_feats_normal, target_feats_normal):
         """
-        정상 s/t embedding을 사용해 분포 기반 threshold 세팅
+        Set distribution-based information (center, dist_threshold, etc.) using normal s/t embeddings
         """
         self.anomaly_score_fn.fit_distribution(source_feats_normal, target_feats_normal)
 
-    def evaluate_simsiam(
-        self, 
-        p1: torch.Tensor, z2: torch.Tensor, 
-        p2: torch.Tensor, z1: torch.Tensor,
-        labels: torch.Tensor
-    ):
+    def evaluate_simsiam(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor, labels: torch.Tensor):
         """
-        SimSiam 기반 anomaly score를 얻어 이진분류(정상/이상) 성능을 평가
-        Args
-        ----
-        p1, z2, p2, z1 : (B, feat_dim)
-            모델 내부에서 뽑은 projection/prediction head 결과
-        labels : (B,)
-            실제 라벨 (0=normal, 1=anomaly 등)
+        SimSiam-based anomaly score -> auto threshold -> (preds vs labels) -> metrics
         """
-        # 1) anomaly score 계산
+        # anomaly score
         scores = self.anomaly_score_fn.calc_simsiam_anomaly_score(p1, z2, p2, z1)  # (B,)
 
-        # 2) threshold를 이용해 예측 라벨(0 or 1) 계산
-        #    예: anomaly_score > simsiam_threshold 이면 1(이상), 아니면 0(정상)
-        preds = (scores > self.simsiam_threshold).long()  # (B,)
+        # find best threshold (F1-based)
+        best_th, best_f1 = find_best_threshold(scores, labels, num_steps=100)
 
-        # 3) 지표 계산
+        # Calculate predicted labels (0 or 1) using the threshold
+        preds = (scores > best_th).long()  # (B,)
+
+        # metric
         acc   = calc_accuracy(preds, labels)
         prec  = calc_precision(preds, labels)
         rec   = calc_recall(preds, labels)
         f1    = calc_f1(preds, labels)
-        auc_v = calc_auc(scores, labels)  # AUC는 점수 기반이므로 scores, labels 필요
+        auc_v = calc_auc(scores, labels)
 
-        # 결과를 딕셔너리 형태로 묶어서 반환
+        # dict
         metrics_dict = {
+            "BestThreshold": best_th,
+            "F1_at_BestTh": best_f1,   # Maximum F1 when finding the threshold
             "Accuracy": acc,
             "Precision": prec,
             "Recall": rec,
@@ -145,31 +163,26 @@ class AnomalyDetector:
 
     def evaluate_distribution(self, feats: torch.Tensor, labels: torch.Tensor):
         """
-        분포 기반 anomaly score를 얻어 이진분류(정상/이상) 성능을 평가
-        Args
-        ----
-        feats : (B, feat_dim)
-            모델에서 추출된 임베딩
-        labels: (B,)
-            실제 라벨(0=normal, 1=anomaly 등)
+        Distribution-based anomaly score -> auto threshold -> (preds vs labels) -> metrics
         """
-        # 1) anomaly score 계산
-        scores = self.anomaly_score_fn.calc_distribution_anomaly_score(feats)  # (B,)
+        # anomaly score
+        distance = self.anomaly_score_fn.calc_distribution_distance(feats)  # (B,)
 
-        # 2) thresholding
-        #    distribution 기반 anomaly_score는 이미 (distance - dist_threshold)의 ReLU 형태이므로,
-        #    score가 0보다 크다는 것은 dist_threshold보다 distance가 크다는 뜻(즉 anomaly).
-        #    -> (score > 0) 이면 anomaly
-        preds = (scores > 0).long()
+        # find best threshold (F1-based)
+        best_th, best_f1 = find_best_threshold(distance, labels, num_steps=100)
 
-        # 3) 지표 계산
+        preds = (distance > best_th).long()
+        
+        # metric
         acc   = calc_accuracy(preds, labels)
         prec  = calc_precision(preds, labels)
         rec   = calc_recall(preds, labels)
         f1    = calc_f1(preds, labels)
-        auc_v = calc_auc(scores, labels)
+        auc_v = calc_auc(distance, labels)  # AUC using distance (or scores)
 
         metrics_dict = {
+            "BestThreshold": best_th,
+            "F1_at_BestTh": best_f1,
             "Accuracy": acc,
             "Precision": prec,
             "Recall": rec,
@@ -177,3 +190,4 @@ class AnomalyDetector:
             "AUC": auc_v
         }
         return metrics_dict
+
