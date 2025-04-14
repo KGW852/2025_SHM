@@ -1,4 +1,5 @@
-# csv_utils.py
+# utils/csv_utils.py
+
 import os
 import csv
 
@@ -14,7 +15,10 @@ def read_csv(file_path, skip_header=False):
 
     # Skip the header
     if skip_header and len(lines) > 0:
-        lines = lines[1:]
+        if "dongjak" in file_path.lower():
+            lines = lines[2:]
+        else:
+            lines = lines[1:]
 
     # Parse each line
     for line in lines:
