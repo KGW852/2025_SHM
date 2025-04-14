@@ -27,7 +27,7 @@ match_strategy: sequential  # random, sequential, pairwise
 
 # train parameters
 device: cuda
-epochs: 2
+epochs: 0
 
 loss:
   recon_loss: mae
@@ -96,10 +96,8 @@ umap:
   random_state: 42
   metric: cosine
 
-# distribution parameters
-distribution:
-  percentile: 99
-
 # anomaly score metric
 anomaly:
-  method: simsiam  # simsiam, distribution
+  method: simsiam  # simsiam, distance, distribution
+  return_thresholded_preds: True
+  distribution_percentile: 99
