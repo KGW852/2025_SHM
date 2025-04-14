@@ -6,7 +6,7 @@ seed: 42
 
 # path
 model:
-  data_name: esc50
+  data_name: dongjak
   model_name: convergent_sim
   trainer: convergent_sim_trainer.py
   trainer_fn: ConvergentSimTrainer
@@ -27,7 +27,7 @@ match_strategy: sequential  # random, sequential, pairwise
 
 # train parameters
 device: cuda
-epochs: 0
+epochs: 2
 
 loss:
   recon_loss: mae

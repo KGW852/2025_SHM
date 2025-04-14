@@ -1,5 +1,6 @@
 # Ignore the data/ESC50 folder
 data/ESC50/
+data/dongjak/
 
 # Ignore the Kyoto-2016_AnoShift.tar file
 Kyoto-2016_AnoShift.tar

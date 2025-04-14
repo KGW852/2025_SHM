@@ -110,6 +110,6 @@ class AnomalyDetector:
         }
 
         if return_thresholded_preds:
-            return results_dict, y_pred_opt
+            return results_dict, y_pred_opt, anomaly_scores
         else:
-            return results_dict
+            return results_dict, anomaly_scores

@@ -139,86 +139,58 @@ class ConvergentSimEvaluator:
         results_final = self.test_epoch(test_loader, epoch=self.last_epoch)
 
         # mlflow metrics log
-        if self.mlflow_logger is not None:
-            # init
-            init_metrics = {}
-            for key, val in results_init.items():
-                if isinstance(val, (float, int)):
-                    init_metrics[f"init_{key}"] = val
-            self.mlflow_logger.log_metrics(init_metrics)
-            # final
-            final_metrics = {}
-            for key, val in results_final.items():
-                if isinstance(val, (float, int)):
-                    final_metrics[f"final_{key}"] = val
-            self.mlflow_logger.log_metrics(final_metrics)
+        if self.mlflow_logger:
+            self.mlflow_logger.log_metrics({f"init_{k}": v for k, v in results_init.items() if isinstance(v, (float, int))})
+            self.mlflow_logger.log_metrics({f"final_{k}": v for k, v in results_final.items() if isinstance(v, (float, int))})
 
         self._plot_and_log_bar_chart(results_init, results_final)
-        self.mlflow_logger.end_run()
+
+        if self.mlflow_logger:
+            self.mlflow_logger.end_run()
 
     def _plot_and_log_bar_chart(self, metrics_init: dict, metrics_final: dict):
-        metric_keys = ["F1", "Accuracy", "Precision", "Recall", "AUC"]
-        init_values = [metrics_init.get(k, 0) for k in metric_keys]
-        final_values = [metrics_final.get(k, 0) for k in metric_keys]
-
-        x_labels = metric_keys
-        x = range(len(x_labels))  # x index
+        metric_keys = ["accuracy", "precision", "recall", "f1", "auc"]
+        init_vals = [metrics_init.get(k, 0.0) for k in metric_keys]
+        final_vals = [metrics_final.get(k, 0.0) for k in metric_keys]
 
         plt.figure(figsize=(8, 5))
+        x = range(len(metric_keys))
         width = 0.35
 
-        # init bar
-        plt.bar([i - width/2 for i in x], init_values, width=width, label="Init Epoch", color='blue')
-        # final bar
-        plt.bar([i + width/2 for i in x], final_values, width=width, label=f"Final Epoch({self.last_epoch})", color='orange')
+        plt.bar([i - width/2 for i in x], init_vals, width=width, label="Init (0 epoch)", color='blue')
+        plt.bar([i + width/2 for i in x], final_vals, width=width, label=f"Final ({self.last_epoch} epoch)", color='orange')
 
-        plt.xticks(x, x_labels)
-        plt.ylabel("Metric Value")
+        plt.xticks(list(x), metric_keys)
         plt.ylim(0, 1.05)
-        plt.title("Comparison of Init vs Final Epoch Metrics")
+        plt.title("Init vs Final Epoch Metric Comparison")
         plt.legend()
         plt.tight_layout()
 
         # save fig
         save_dir = self.model_utils.get_save_dir()
         os.makedirs(f"{save_dir}/metric", exist_ok=True)
-        metrics_file = f"{save_dir}/metric/metrics.png"
-        plt.savefig(metrics_file, dpi=100)
+        fig_path = f"{save_dir}/metric/metric_init and epoch{self.last_epoch}.png"
+        plt.savefig(fig_path, dpi=100)
         plt.close()
-
         # mlflow artifact upload
         if self.mlflow_logger is not None:
-            self.mlflow_logger.log_artifact(metrics_file, artifact_path="metrics")
-            print(f"Bar chart saved & logged to MLflow: {metrics_file}")
+            self.mlflow_logger.log_artifact(fig_path, artifact_path="metrics")
+            print(f"Bar chart saved & logged to MLflow: {fig_path}")
 
-    def save_anomaly_scores_as_csv(self,
-                                   epoch: int,
-                                   class_labels: torch.Tensor,
-                                   anomaly_labels: torch.Tensor,
-                                   p_s: torch.Tensor,
-                                   z_s: torch.Tensor,
-                                   p_t: torch.Tensor,
-                                   z_t: torch.Tensor) -> str:
+    def save_anomaly_scores_as_csv(self, epoch: int, anomaly_labels: torch.Tensor, anomaly_scores, y_pred_opt) -> None:
         save_dir = self.model_utils.get_save_dir()
         os.makedirs(f"{save_dir}/metric", exist_ok=True)
         csv_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}.csv"
 
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["file_name", "class_label", "anomaly_label", "anomaly_score"])
+            writer.writerow(["index", "anomaly_label", "score", "pred_label"])
 
-            num_samples = p_s.shape[0]
-            for i in range(num_samples):
-                score = self.anomaly_score.calc_simsiam_anomaly_score(
-                    p_s[i], z_t[i],
-                    p_t[i], z_s[i]
-                )
-                c_label = class_labels[i].item()
+            for i, score in enumerate(anomaly_scores):
                 a_label = anomaly_labels[i].item()
-
-                writer.writerow([c_label, a_label, float(score)])
-
+                pred = int(y_pred_opt[i])
+                writer.writerow([i, a_label, float(score), pred])
         # mlflow artifact upload
-        if self.mlflow_logger is not None:
+        if self.mlflow_logger:
             self.mlflow_logger.log_artifact(csv_path, artifact_path="metrics")
-            print(f"Bar chart saved & logged to MLflow: {csv_path}")
+            print(f"[save_anomaly_scores_as_csv] CSV saved & logged to MLflow: {csv_path}")

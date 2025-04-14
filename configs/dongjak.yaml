@@ -1,0 +1,20 @@
+# configs/dongjak.yaml
+
+# path
+root_dir: ./data/dongjak
+train:
+  src_dir: ./data/dongjak/train
+  tgt_dir: ./data/dongjak/test/test18
+eval:
+  src_dir: ./data/dongjak/eval/eval01
+  tgt_dir: ./data/dongjak/test/test18
+test:
+  src_dir: ./data/dongjak/eval/eval02
+  tgt_dir: ./data/dongjak/test/test18
+
+# overide default.yaml
+model:
+  model_name: convergent_sim
+
+loss:
+  recon_loss: mse

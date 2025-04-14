@@ -24,6 +24,6 @@ def read_csv(file_path, skip_header=False):
     return data
 
 def save_csv(save_data, save_path):
-    with open(save_path, 'w', newline='') as f:
+    with open(save_path, 'w', newline='', encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerows(save_data)
