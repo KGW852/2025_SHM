@@ -7,7 +7,7 @@ from .modules.sample_distance import compute_cross_nn_distance
 from .modules.umap import UMAP
 
 
-def eval_latent_alignment(cfg, mlflow_logger, source_embeddings, target_embeddings, epoch):
+def eval_latent_alignment(cfg, mlflow_logger, source_embeddings, target_embeddings, epoch, f_class):
     """
     Evaluate latent space alignment between source and target embeddings for a given epoch.
     Generates a UMAP visualization (using metric distance) of source vs. target embeddings.
@@ -31,7 +31,7 @@ def eval_latent_alignment(cfg, mlflow_logger, source_embeddings, target_embeddin
     model_utils = ModelUtils(cfg)
     save_dir = model_utils.get_save_dir()
     os.makedirs(f"{save_dir}/umap", exist_ok=True)
-    umap_file = f"{save_dir}/umap/umap_epoch_{epoch}.png"
+    umap_file = f"{save_dir}/umap/umap_epoch{epoch}_{f_class}.png"
 
     # Create UMAP instance
     cos_umap = UMAP(

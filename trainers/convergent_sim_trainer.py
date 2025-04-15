@@ -51,6 +51,7 @@ class ConvergentSimTrainer:
         self.epochs = cfg["epochs"]
         self.log_every = cfg.get("log_every", 1)
         self.save_every = cfg.get("save_every", 1)
+        self.eval_n_batch = cfg["eval_n_batch"]
 
         # run_name: model_name
         self.run_name = self.model_utils.get_model_name()
@@ -131,10 +132,18 @@ class ConvergentSimTrainer:
         Collect the extracted embeddings into a list (or concatenate into a tensor) and return them.
         """
         self.encoder.eval()
-        source_embeddings = []
-        target_embeddings = []
+        src_f_enc = []
+        tgt_f_enc = []
+        src_f_proj = []
+        tgt_f_proj = []
 
-        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Embedding [{data_loader}]", leave=False)
+        # The smaller value between the total length of the current data_loader and eval_n_batch
+        if not self.eval_n_batch or self.eval_n_batch <= 0:
+            max_batches = len(data_loader)
+        else:
+            max_batches = min(len(data_loader), self.eval_n_batch)
+
+        pbar = tqdm(enumerate(data_loader), total=max_batches, desc=f"Embedding [{data_loader}]", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
                 (x_s, y_s), (x_t, y_t) = data
@@ -147,13 +156,21 @@ class ConvergentSimTrainer:
                 e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
 
                 # stack
-                source_embeddings.append(z_s.detach().cpu())
-                target_embeddings.append(z_t.detach().cpu())
+                src_f_enc.append(e_s.detach().cpu())
+                tgt_f_enc.append(e_t.detach().cpu())
+                src_f_proj.append(z_s.detach().cpu())
+                tgt_f_proj.append(z_t.detach().cpu())
+
+                if (batch_idx + 1) >= max_batches:
+                    break
 
         # combine the embeddings of all batches into a single Tensor
-        source_embeddings = torch.cat(source_embeddings, dim=0)
-        target_embeddings = torch.cat(target_embeddings, dim=0)
-        return source_embeddings, target_embeddings
+        src_f_enc = torch.cat(src_f_enc, dim=0)
+        tgt_f_enc = torch.cat(tgt_f_enc, dim=0)
+        src_f_proj = torch.cat(src_f_proj, dim=0)
+        tgt_f_proj = torch.cat(tgt_f_proj, dim=0)
+
+        return src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -193,14 +210,13 @@ class ConvergentSimTrainer:
                 eval_loss = self.eval_epoch(eval_loader, epoch)  # eval
 
                 # calc umap, NN distace
-                source_embeddings, target_embeddings = self.get_embeddings(eval_loader)  # extract embedding
-                eval_latent_alignment(
-                    cfg=self.cfg,
-                    mlflow_logger=self.mlflow_logger,
-                    source_embeddings=source_embeddings,
-                    target_embeddings=target_embeddings,
-                    epoch=epoch
-                )
+                src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj = self.get_embeddings(eval_loader)  # extract embedding
+                eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                                      source_embeddings=src_f_enc, target_embeddings=tgt_f_enc, 
+                                      epoch=epoch, f_class="encoder")
+                eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                                      source_embeddings=src_f_proj, target_embeddings=tgt_f_proj, 
+                                      epoch=epoch, f_class="projector")
 
             # mlflow metrics log
             if self.mlflow_logger is not None:

@@ -49,6 +49,7 @@ class ConvergentSimEvaluator:
         self.anomaly_score_fn = AnomalyScore(self.cfg)
         self.anomaly_detector = AnomalyDetector(self.cfg, self.anomaly_score_fn)
         self.return_thresholded_preds = cfg["anomaly"].get("return_thresholded_preds", False)
+        self.test_n_batch = cfg["test_n_batch"]
 
     def test_epoch(self, data_loader, epoch):
         ckpt_file = self.model_utils.get_file_name(epoch)
@@ -65,9 +66,16 @@ class ConvergentSimEvaluator:
         all_class_labels = []
         all_anomaly_labels = []
 
-        pbar = tqdm(data_loader, desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
+        # The smaller value between the total length of the current data_loader and eval_n_batch
+        if not self.test_n_batch or self.test_n_batch <= 0:
+            max_batches = len(data_loader)
+        else:
+            max_batches = min(len(data_loader), self.test_n_batch)
+
+        pbar = tqdm(enumerate(data_loader), total=max_batches, desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
         with torch.no_grad():
-            for (x_s, y_s), (x_t, y_t) in pbar:  # y_s, y_t: tensor([class_label, anomaly_label])
+            for batch_idx, data in pbar:
+                (x_s, y_s), (x_t, y_t) = data  # y_s, y_t: tensor([class_label, anomaly_label])
                 class_y_s = y_s[:,0]  # (B,)
                 anomaly_y_s = y_s[:,1]
                 class_y_t = y_t[:,0]
@@ -87,6 +95,9 @@ class ConvergentSimEvaluator:
                 all_z_t.append(z_t.cpu())
                 all_class_labels.append(class_y_s.cpu())
                 all_anomaly_labels.append(anomaly_y_s.cpu())
+
+                if (batch_idx + 1) >= max_batches:
+                    break
 
         # tensor concat
         all_p_s = torch.cat(all_p_s, dim=0)
