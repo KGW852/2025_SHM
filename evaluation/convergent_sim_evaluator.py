@@ -11,6 +11,7 @@ from models.convergent_sim import SimEncoder
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyDetector
+from evaluation.training_eval import eval_latent_alignment
 
 class ConvergentSimEvaluator:
     """
@@ -61,10 +62,12 @@ class ConvergentSimEvaluator:
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
         self.encoder.eval()
 
+        all_e_s, all_e_t = [], []
         all_p_s, all_z_s = [], []
         all_p_t, all_z_t = [], []
-        all_class_labels = []
-        all_anomaly_labels = []
+        all_class_y_s = []
+        all_anomaly_y_s = []
+        all_class_y_t = []
 
         # The smaller value between the total length of the current data_loader and eval_n_batch
         if not self.test_n_batch or self.test_n_batch <= 0:
@@ -89,23 +92,29 @@ class ConvergentSimEvaluator:
 
                 # 250414 검토 필요.
                 # stack
+                all_e_s.append(e_s.cpu())
+                all_e_t.append(e_t.cpu())
                 all_p_s.append(p_s.cpu())
                 all_z_s.append(z_s.cpu())
                 all_p_t.append(p_t.cpu())
                 all_z_t.append(z_t.cpu())
-                all_class_labels.append(class_y_s.cpu())
-                all_anomaly_labels.append(anomaly_y_s.cpu())
+                all_class_y_s.append(class_y_s.cpu())
+                all_anomaly_y_s.append(anomaly_y_s.cpu())
+                all_class_y_t.append(class_y_t.cpu())
 
                 if (batch_idx + 1) >= max_batches:
                     break
 
         # tensor concat
+        all_e_s = torch.cat(all_e_s, dim=0)
+        all_e_t = torch.cat(all_e_t, dim=0)
         all_p_s = torch.cat(all_p_s, dim=0)
         all_z_s = torch.cat(all_z_s, dim=0)
         all_p_t = torch.cat(all_p_t, dim=0)
         all_z_t = torch.cat(all_z_t, dim=0)
-        all_class_labels   = torch.cat(all_class_labels, dim=0).long()
-        all_anomaly_labels = torch.cat(all_anomaly_labels, dim=0).long()
+        all_class_y_s   = torch.cat(all_class_y_s, dim=0).long()
+        all_anomaly_y_s = torch.cat(all_anomaly_y_s, dim=0).long()
+        all_class_y_t = torch.cat(all_class_y_t, dim=0).long()
         """
         # debug
         unique_class_labels = torch.unique(all_class_labels)
@@ -116,19 +125,19 @@ class ConvergentSimEvaluator:
         print(f"[Debug] unique anomaly labels: {unique_anomaly_labels}")
         """
         # Evaluation: AnomalyDetector
-        results_dict = {}
+        anomaly_dict = {}
         y_pred_opt, anomaly_scores = None, None
         
         ret = self.anomaly_detector.evaluate(p1=all_p_s, z2=all_z_t, p2=all_p_t, z1=all_z_s, 
-                                             y_true=all_anomaly_labels, return_thresholded_preds=self.return_thresholded_preds)
-        results_dict, y_pred_opt, anomaly_scores = ret
+                                             y_true=all_anomaly_y_s, return_thresholded_preds=self.return_thresholded_preds)
+        anomaly_dict, y_pred_opt, anomaly_scores = ret
 
         # (Optional) csv save
-        self.save_anomaly_scores_as_csv(epoch=epoch, anomaly_labels=all_anomaly_labels, anomaly_scores=anomaly_scores, y_pred_opt=y_pred_opt)
+        self.save_anomaly_scores_as_csv(epoch=epoch, anomaly_labels=all_anomaly_y_s, anomaly_scores=anomaly_scores, y_pred_opt=y_pred_opt)
 
-        print(f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method} | ", results_dict)
+        print(f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method} | ", anomaly_dict)
 
-        return results_dict
+        return anomaly_dict, all_e_s, all_e_t, all_z_s, all_z_t, all_class_y_s, all_class_y_t
 
     def run(self, eval_loader, test_loader):
         """
@@ -146,15 +155,24 @@ class ConvergentSimEvaluator:
             self.anomaly_detector.fit_distribution(source_normal, target_normal)
         """
         # evaluation
-        results_init = self.test_epoch(test_loader, epoch=0)
-        results_final = self.test_epoch(test_loader, epoch=self.last_epoch)
+        (anomaly_dict_init, all_e_s_init, all_e_t_init, all_z_s_init, all_z_t_init, all_class_y_s_init, all_class_y_t_init) = self.test_epoch(test_loader, epoch=0)
+        (anomaly_dict_final, all_e_s_final, all_e_t_final, all_z_s_final, all_z_t_final, all_class_y_s_final, all_class_y_t_final) = self.test_epoch(test_loader, epoch=self.last_epoch)
 
         # mlflow metrics log
         if self.mlflow_logger:
-            self.mlflow_logger.log_metrics({f"init_{k}": v for k, v in results_init.items() if isinstance(v, (float, int))})
-            self.mlflow_logger.log_metrics({f"final_{k}": v for k, v in results_final.items() if isinstance(v, (float, int))})
+            self.mlflow_logger.log_metrics({f"init_{k}": v for k, v in anomaly_dict_init.items() if isinstance(v, (float, int))})
+            self.mlflow_logger.log_metrics({f"final_{k}": v for k, v in anomaly_dict_final.items() if isinstance(v, (float, int))})
 
-        self._plot_and_log_bar_chart(results_init, results_final)
+        self._plot_and_log_bar_chart(anomaly_dict_init, anomaly_dict_final)
+
+        eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                              source_embeddings=all_e_s_final, target_embeddings=all_e_t_final, 
+                              source_labels=all_class_y_s_final, target_labels=all_class_y_t_final, 
+                              epoch=self.last_epoch, f_class="encoder")
+        eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                              source_embeddings=all_z_s_final, target_embeddings=all_z_t_final, 
+                              source_labels=all_class_y_s_final, target_labels=all_class_y_t_final, 
+                              epoch=self.last_epoch, f_class="projector")
 
         if self.mlflow_logger:
             self.mlflow_logger.end_run()

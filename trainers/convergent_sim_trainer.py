@@ -8,7 +8,7 @@ from models.criterions.simsiam_loss import SimSiamLoss
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from .tools import Optimizer, Scheduler, EarlyStopper
-from evaluation.training_eval import eval_latent_alignment
+from evaluation.modules.umap import plot_latent_alignment
 
 
 class ConvergentSimTrainer:
@@ -136,6 +136,8 @@ class ConvergentSimTrainer:
         tgt_f_enc = []
         src_f_proj = []
         tgt_f_proj = []
+        src_class_lbl = []
+        tgt_class_lbl = []
 
         # The smaller value between the total length of the current data_loader and eval_n_batch
         if not self.eval_n_batch or self.eval_n_batch <= 0:
@@ -148,9 +150,10 @@ class ConvergentSimTrainer:
             for batch_idx, data in pbar:
                 (x_s, y_s), (x_t, y_t) = data
                 x_s = x_s.to(self.device)
-                y_s = y_s.to(self.device)
+                class_y_s = y_s[:,0].to(self.device)  # (B,)
                 x_t = x_t.to(self.device)
                 y_t = y_t.to(self.device)
+                class_y_t = y_t[:,0].to(self.device)  # (B,)
 
                 # forward
                 e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
@@ -160,6 +163,8 @@ class ConvergentSimTrainer:
                 tgt_f_enc.append(e_t.detach().cpu())
                 src_f_proj.append(z_s.detach().cpu())
                 tgt_f_proj.append(z_t.detach().cpu())
+                src_class_lbl.append(class_y_s.detach().cpu())
+                tgt_class_lbl.append(class_y_t.detach().cpu())
 
                 if (batch_idx + 1) >= max_batches:
                     break
@@ -169,8 +174,10 @@ class ConvergentSimTrainer:
         tgt_f_enc = torch.cat(tgt_f_enc, dim=0)
         src_f_proj = torch.cat(src_f_proj, dim=0)
         tgt_f_proj = torch.cat(tgt_f_proj, dim=0)
+        src_class_lbl = torch.cat(src_class_lbl, dim=0)
+        tgt_class_lbl = torch.cat(tgt_class_lbl, dim=0)
 
-        return src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj
+        return src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj, src_class_lbl, tgt_class_lbl
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -210,12 +217,12 @@ class ConvergentSimTrainer:
                 eval_loss = self.eval_epoch(eval_loader, epoch)  # eval
 
                 # calc umap, NN distace
-                src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj = self.get_embeddings(eval_loader)  # extract embedding
-                eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                                      source_embeddings=src_f_enc, target_embeddings=tgt_f_enc, 
+                src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj, src_class_lbl, tgt_class_lbl = self.get_embeddings(eval_loader)  # extract embedding
+                plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                                      src_embed=src_f_enc, tgt_embed=tgt_f_enc, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
                                       epoch=epoch, f_class="encoder")
-                eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                                      source_embeddings=src_f_proj, target_embeddings=tgt_f_proj, 
+                plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                                      src_embed=src_f_proj, tgt_embed=tgt_f_proj, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
                                       epoch=epoch, f_class="projector")
 
             # mlflow metrics log

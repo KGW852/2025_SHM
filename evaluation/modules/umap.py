@@ -1,11 +1,14 @@
 # evaluation/modules/umap.py
 
+import os
 import numpy as np
 import torch
 import umap
 import matplotlib.pyplot as plt
 
 from typing import Dict, List, Tuple, Union, Optional
+
+from utils.model_utils import ModelUtils
 
 class UMAP:
     """
@@ -202,63 +205,56 @@ class UMAP:
             plt.show()
 
 
-"""
-# Example usage (assuming torch is imported and cos_umap.py is in PYTHONPATH)
+def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt_lbl, epoch, f_class):
+    """
+    Evaluate latent space alignment between source and target embeddings for a given epoch, grouped by class labels.
+    Args:
+        cfg (dict): Configuration dictionary containing UMAP parameters under cfg["umap"].
+        mlflow_logger: MLflow logger object with methods log_artifact(path) and log_metrics(dict, step).
+        src_embed (torch.Tensor): Embeddings from the source domain (shape: [N, dim]).
+        tgt_embed (torch.Tensor): Embeddings from the target domain (shape: [M, dim]).
+        src_lbl (torch.Tensor): (shape: [N])
+        tgt_lbl (torch.Tensor): (shape: [M])
+        epoch (int): Current epoch number (used for logging and naming outputs).
+        f_class (str): feature layer name ("embedding", "projector")
+    """
+    # UMAP parameters
+    umap_params = cfg.get("umap", {})
+    n_neighbors = umap_params.get("n_neighbors", 15)
+    min_dist = umap_params.get("min_dist", 0.1)
+    n_components = umap_params.get("n_components", 2)
+    random_state = umap_params.get("random_state", 42)
+    metric = umap_params.get("metric", None)
 
-# Suppose we have two domain embeddings: domain A and domain B
-embedding_A = torch.rand(10, 64)  # 100 samples, 64-dim embedding
-embedding_B = torch.rand(10, 64)  # 120 samples, same 64-dim embedding space
+    model_utils = ModelUtils(cfg)
+    save_dir = model_utils.get_save_dir()
+    os.makedirs(f"{save_dir}/umap", exist_ok=True)
+    umap_file = f"{save_dir}/umap/umap_epoch{epoch}_{f_class}.png"
 
-n_neighbors = 15
-min_dist = 0.1
-n_components = 2
-metric = 'cosine'
+    # UMAP instance
+    cos_umap = UMAP(
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        n_components=n_components,
+        random_state=random_state,
+        metric=metric
+    )
 
-visualizer = CosineUMAP(n_neighbors=n_neighbors, min_dist=min_dist,
-                        n_components=n_components, random_state=42, metric=metric)
+    # label, embeddings dict
+    unique_labels = torch.unique(torch.cat([src_lbl, tgt_lbl], dim=0))
+    embeddings_dict = {}
+    for c in unique_labels:
+        mask_s = (src_lbl == c)
+        if mask_s.any():
+            embeddings_dict[f"src_class_{c.item()}"] = src_embed[mask_s]
+        mask_t = (tgt_lbl == c)
+        if mask_t.any():
+            embeddings_dict[f"tgt_class_{c.item()}"] = tgt_embed[mask_t]
 
-emb_2d, labels = visualizer.fit_transform(
-    embeddings={"Domain A": embedding_A, "Domain B": embedding_B}
-)
+    # UMAP.plot_embeddings
+    embeddings_2d, label_array = cos_umap.fit_transform(embeddings_dict)
+    cos_umap.plot_embeddings(embeddings_umap=embeddings_2d, labels=label_array, save_path=umap_file, show=False)
 
-# Now emb_2d is an array of shape (220, 2) and labels is an array of length 220.
-# We can plot these points, coloring by domain:
-import matplotlib.pyplot as plt
-fig = plt.figure(figsize=(8, 6))
-
-unique_labels = np.unique(labels)
-colors = plt.get_cmap('tab10', len(unique_labels))
-
-if n_components == 1:
-    ax = fig.add_subplot(111)
-    for i, domain in enumerate(unique_labels):
-        idx = (labels == domain)
-        ax.scatter(emb_2d[idx, 0], np.zeros_like(emb_2d[idx, 0]), label=domain, color=colors(i))
-    ax.set_ylabel("Constant Zero Line")
-    ax.set_xlabel("UMAP Dimension 1")
-
-elif n_components == 2:
-    ax = fig.add_subplot(111)
-    for i, domain in enumerate(unique_labels):
-        idx = (labels == domain)
-        ax.scatter(emb_2d[idx, 0], emb_2d[idx, 1], label=domain, color=colors(i))
-    ax.set_xlabel("UMAP Dimension 1")
-    ax.set_ylabel("UMAP Dimension 2")
-
-elif n_components == 3:
-    ax = fig.add_subplot(111, projection='3d')
-    for i, domain in enumerate(unique_labels):
-        idx = (labels == domain)
-        ax.scatter(emb_2d[idx, 0], emb_2d[idx, 1], emb_2d[idx, 2], label=domain, s=30, color=colors(i))
-    ax.set_xlabel("UMAP Dimension 1")
-    ax.set_ylabel("UMAP Dimension 2")
-    ax.set_zlabel("UMAP Dimension 3")
-
-plt.title(f"UMAP projection of multi-domain embeddings ({metric})", fontsize=14)
-plt.legend()
-plt.tight_layout()
-plt.show()
-# If using MLflow, log the figure:
-# import mlflow
-# mlflow.log_figure(fig, "multi_domain_umap.png")
-"""
+    # Log the UMAP plot image to MLflow
+    mlflow_logger.log_artifact(umap_file, artifact_path="alignment")
+    
