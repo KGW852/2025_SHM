@@ -89,7 +89,7 @@ class DomainDataset(Dataset):
         self.source_length = len(self.source_dataset)
         self.target_length = len(self.target_dataset)
 
-        self._pairwise_data = self._build_pair_samples()
+        self.pairwise_data = self._build_pair_samples()
 
     def _build_pair_samples(self):
         """
@@ -104,50 +104,62 @@ class DomainDataset(Dataset):
                 source_data_by_label[class_label] = []
             source_data_by_label[class_label].append((s_data, s_label))
 
-        # sample n_samples items per label (or all)
-        for cl in source_data_by_label:
-            random.shuffle(source_data_by_label[cl])
-            if self.n_samples != -1:
-                source_data_by_label[cl] = source_data_by_label[cl][: self.n_samples]
+        # sampling n_samples items per label (or all)
+        for cl_label in source_data_by_label:
+            if self.n_samples != -1 and len(source_data_by_label[cl_label]) > self.n_samples:
+                source_data_by_label[cl_label] = source_data_by_label[cl_label][: self.n_samples]
 
-        # sample n_samples items from the target (or all)
+        # sampling n_samples items from the target (or all)
         all_target_data = []
         for idx in range(self.target_length):
             t_data, t_label = self.target_dataset[idx]
             all_target_data.append((t_data, t_label))
-        random.shuffle(all_target_data)
-        if self.n_samples == -1:
-            target_samples = all_target_data
-        else:
-            target_samples = all_target_data[: self.n_samples]
+        if self.n_samples != -1 and len(all_target_data) > self.n_samples:
+            all_target_data = all_target_data[: self.n_samples]
 
+        if len(all_target_data) == 0:
+            return []
+
+        # calculate the maximum length (L_max) of the label group
+        label_group_lengths = [len(src_list) for src_list in source_data_by_label.values()]
+        L_max = max(label_group_lengths) if label_group_lengths else 0
+
+        # L_max-sized list pattern_idxs
+        len_tgt = len(all_target_data)
+        pattern_idxs = []
+        for i in range(L_max):
+            if self.match_strategy == 'sequential':
+                pattern_idxs.append(i % len_tgt)
+            elif self.match_strategy == 'random':
+                pattern_idxs.append(random.randint(0, len_tgt - 1))
+            else:
+                raise ValueError(f"Unknown match strategy: {self.match_strategy}")
+            
         # For each source label, perform 1:1 matching between the list of samples for that label and target_samples
         pairwise_data = []
-        for cl_label, s_list in source_data_by_label.items():
-            len_min = min(len(s_list), len(target_samples))
-            for i in range(len_min):
-                src_data, src_label = s_list[i]
-                tgt_data, tgt_label = target_samples[i]
+        for cl_label, src_list in source_data_by_label.items():
+            group_len = len(src_list)
+            for i in range(group_len):
+                src_data, src_label = src_list[i]
+                if i < L_max:
+                    tgt_idx = pattern_idxs[i]
+                else:
+                    if self.match_strategy == 'sequential':
+                        tgt_idx = i % len_tgt
+                    else:  # 'random'
+                        tgt_idx = random.randint(0, len_tgt - 1)
+
+                tgt_data, tgt_label = all_target_data[tgt_idx]
                 pairwise_data.append(((src_data, src_label), (tgt_data, tgt_label)))
 
         return pairwise_data
 
     def __len__(self):
-        return max(self.source_length, self.target_length)
+        return len(self.pairwise_data)
 
     def __getitem__(self, idx):
-        if not self._pairwise_data:
-            raise IndexError("No (src, tgt) samples are available in pairwise_data.")
-        
-        if self.match_strategy == 'random':
-            pair_idx = random.randint(0, len(self._pairwise_data) - 1)
-            (src_data, src_label), (tgt_data, tgt_label) = self._pairwise_data[pair_idx]
-            return (src_data, src_label), (tgt_data, tgt_label)
+        if idx >= len(self.pairwise_data):
+            raise IndexError("Index out of range for the constructed pairwise_data.")
+        (src_data, src_label), (tgt_data, tgt_label) = self.pairwise_data[idx]
 
-        elif self.match_strategy == 'sequential':
-            pair_idx = idx % len(self._pairwise_data)
-            (src_data, src_label), (tgt_data, tgt_label) = self._pairwise_data[pair_idx]
-            return (src_data, src_label), (tgt_data, tgt_label)
-        
-        else:
-            raise ValueError(f"Unknown match strategy: {self.match_strategy}")
+        return (src_data, src_label), (tgt_data, tgt_label)
