@@ -51,7 +51,6 @@ class ConvergentSimTrainer:
         self.epochs = cfg["epochs"]
         self.log_every = cfg.get("log_every", 1)
         self.save_every = cfg.get("save_every", 1)
-        self.eval_n_batch = cfg["eval_n_batch"]
 
         # run_name: model_name
         self.run_name = self.model_utils.get_model_name()
@@ -139,13 +138,7 @@ class ConvergentSimTrainer:
         src_class_lbl = []
         tgt_class_lbl = []
 
-        # The smaller value between the total length of the current data_loader and eval_n_batch
-        if not self.eval_n_batch or self.eval_n_batch <= 0:
-            max_batches = len(data_loader)
-        else:
-            max_batches = min(len(data_loader), self.eval_n_batch)
-
-        pbar = tqdm(enumerate(data_loader), total=max_batches, desc=f"Embedding [{data_loader}]", leave=False)
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Embedding [{data_loader}]", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
                 (x_s, y_s), (x_t, y_t) = data
@@ -165,9 +158,6 @@ class ConvergentSimTrainer:
                 tgt_f_proj.append(z_t.detach().cpu())
                 src_class_lbl.append(class_y_s.detach().cpu())
                 tgt_class_lbl.append(class_y_t.detach().cpu())
-
-                if (batch_idx + 1) >= max_batches:
-                    break
 
         # combine the embeddings of all batches into a single Tensor
         src_f_enc = torch.cat(src_f_enc, dim=0)
@@ -220,10 +210,10 @@ class ConvergentSimTrainer:
                 src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj, src_class_lbl, tgt_class_lbl = self.get_embeddings(eval_loader)  # extract embedding
                 plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
                                       src_embed=src_f_enc, tgt_embed=tgt_f_enc, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
-                                      epoch=epoch, f_class="encoder")
+                                      epoch=epoch, f_class="eval_encoder")
                 plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
                                       src_embed=src_f_proj, tgt_embed=tgt_f_proj, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
-                                      epoch=epoch, f_class="projector")
+                                      epoch=epoch, f_class="eval_projector")
 
             # mlflow metrics log
             if self.mlflow_logger is not None:

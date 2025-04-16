@@ -246,10 +246,10 @@ def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt
     for c in unique_labels:
         mask_s = (src_lbl == c)
         if mask_s.any():
-            embeddings_dict[f"src_class_{c.item()}"] = src_embed[mask_s]
+            embeddings_dict[f"label_{c.item()}"] = src_embed[mask_s]
         mask_t = (tgt_lbl == c)
         if mask_t.any():
-            embeddings_dict[f"tgt_class_{c.item()}"] = tgt_embed[mask_t]
+            embeddings_dict[f"label_{c.item()}"] = tgt_embed[mask_t]
 
     # UMAP.plot_embeddings
     embeddings_2d, label_array = cos_umap.fit_transform(embeddings_dict)
@@ -257,4 +257,3 @@ def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt
 
     # Log the UMAP plot image to MLflow
     mlflow_logger.log_artifact(umap_file, artifact_path="alignment")
-    

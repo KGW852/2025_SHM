@@ -17,21 +17,18 @@ model:
   base_dir: ./logs  # save model base dir
 
 # data parameters
-batch_size: 64
+match_strategy: sequential  # random, sequential
+train_n_samples: -1  # if -1: all
+eval_n_samples: 4
+test_n_samples: 4
+batch_size: 2
 n_workers: 8
-match_strategy: sequential  # random, sequential, pairwise
 
 # train parameters
 device: cuda
 epochs: 0
-
-# trainer eval parameters
 log_every: 1
 save_every: 1
-eval_n_batch: 5  # if -1: all
-
-# evaluator test parameters
-test_n_batch: 5  # if -1: all
 
 loss:
   recon_loss: mae

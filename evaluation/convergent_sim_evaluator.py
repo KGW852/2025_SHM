@@ -11,7 +11,7 @@ from models.convergent_sim import SimEncoder
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyDetector
-from evaluation.training_eval import eval_latent_alignment
+from evaluation.modules.umap import plot_latent_alignment
 
 class ConvergentSimEvaluator:
     """
@@ -50,7 +50,6 @@ class ConvergentSimEvaluator:
         self.anomaly_score_fn = AnomalyScore(self.cfg)
         self.anomaly_detector = AnomalyDetector(self.cfg, self.anomaly_score_fn)
         self.return_thresholded_preds = cfg["anomaly"].get("return_thresholded_preds", False)
-        self.test_n_batch = cfg["test_n_batch"]
 
     def test_epoch(self, data_loader, epoch):
         ckpt_file = self.model_utils.get_file_name(epoch)
@@ -69,13 +68,7 @@ class ConvergentSimEvaluator:
         all_anomaly_y_s = []
         all_class_y_t = []
 
-        # The smaller value between the total length of the current data_loader and eval_n_batch
-        if not self.test_n_batch or self.test_n_batch <= 0:
-            max_batches = len(data_loader)
-        else:
-            max_batches = min(len(data_loader), self.test_n_batch)
-
-        pbar = tqdm(enumerate(data_loader), total=max_batches, desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
                 (x_s, y_s), (x_t, y_t) = data  # y_s, y_t: tensor([class_label, anomaly_label])
@@ -101,9 +94,6 @@ class ConvergentSimEvaluator:
                 all_class_y_s.append(class_y_s.cpu())
                 all_anomaly_y_s.append(anomaly_y_s.cpu())
                 all_class_y_t.append(class_y_t.cpu())
-
-                if (batch_idx + 1) >= max_batches:
-                    break
 
         # tensor concat
         all_e_s = torch.cat(all_e_s, dim=0)
@@ -134,7 +124,6 @@ class ConvergentSimEvaluator:
 
         # (Optional) csv save
         self.save_anomaly_scores_as_csv(epoch=epoch, anomaly_labels=all_anomaly_y_s, anomaly_scores=anomaly_scores, y_pred_opt=y_pred_opt)
-
         print(f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method} | ", anomaly_dict)
 
         return anomaly_dict, all_e_s, all_e_t, all_z_s, all_z_t, all_class_y_s, all_class_y_t
@@ -165,14 +154,12 @@ class ConvergentSimEvaluator:
 
         self._plot_and_log_bar_chart(anomaly_dict_init, anomaly_dict_final)
 
-        eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                              source_embeddings=all_e_s_final, target_embeddings=all_e_t_final, 
-                              source_labels=all_class_y_s_final, target_labels=all_class_y_t_final, 
-                              epoch=self.last_epoch, f_class="encoder")
-        eval_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                              source_embeddings=all_z_s_final, target_embeddings=all_z_t_final, 
-                              source_labels=all_class_y_s_final, target_labels=all_class_y_t_final, 
-                              epoch=self.last_epoch, f_class="projector")
+        plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                              src_embed=all_e_s_final, tgt_embed=all_e_t_final, src_lbl=all_class_y_s_final, tgt_lbl=all_class_y_t_final, 
+                              epoch=self.last_epoch, f_class="test_encoder")
+        plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
+                              src_embed=all_z_s_final, tgt_embed=all_z_t_final, src_lbl=all_class_y_s_final, tgt_lbl=all_class_y_t_final, 
+                              epoch=self.last_epoch, f_class="test_projector")
 
         if self.mlflow_logger:
             self.mlflow_logger.end_run()

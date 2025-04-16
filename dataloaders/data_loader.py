@@ -38,7 +38,8 @@ def get_train_loader(cfg):
     da_dataset = DomainDataset(
         source_dataset,
         target_dataset,
-        match_strategy=cfg["match_strategy"]
+        match_strategy=cfg["match_strategy"],  # "random", "sequential", etc.
+        n_samples=cfg["train_n_samples"]
     )
     train_loader = DataLoader(
         da_dataset,
@@ -82,7 +83,8 @@ def get_eval_loader(cfg):
     da_dataset = DomainDataset(
         source_dataset,
         target_dataset,
-        match_strategy=cfg["match_strategy"]  # "random", "sequential", etc.
+        match_strategy=cfg["match_strategy"],
+        n_samples=cfg["eval_n_samples"]
     )
     eval_loader = DataLoader(
         da_dataset,
@@ -126,7 +128,8 @@ def get_test_loader(cfg):
     da_dataset = DomainDataset(
         source_dataset,
         target_dataset,
-        match_strategy=cfg["match_strategy"]
+        match_strategy=cfg["match_strategy"],
+        n_samples=cfg["test_n_samples"]
     )
     test_loader = DataLoader(
         da_dataset,

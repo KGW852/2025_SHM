@@ -76,31 +76,78 @@ class DomainDataset(Dataset):
     Args:
         source_dataset (CustomDataset): Source domain dataset
         target_dataset (CustomDataset): Target domain dataset
-        match_strategy (str): Strategy for matching source and target data. Options: 'sequential', 'random', 'pairwise'
+        match_strategy (str): Strategy for matching source and target data. Options: 'sequential', 'random'
+        n_samples (int): Number of target samples to use in pairwise (e.g. 10)
     """
-    def __init__(self, source_dataset, target_dataset, match_strategy='sequential'):
+    def __init__(self, source_dataset, target_dataset, match_strategy='sequential', n_samples=10):
         super().__init__()
         self.source_dataset = source_dataset
         self.target_dataset = target_dataset
         self.match_strategy = match_strategy
+        self.n_samples = n_samples
 
         self.source_length = len(self.source_dataset)
         self.target_length = len(self.target_dataset)
+
+        self._pairwise_data = self._build_pair_samples()
+
+    def _build_pair_samples(self):
+        """
+        In pairwise, pre-construct (src, tgt) pairs using n_samples items (or all),
+        each class label in the source, select n_samples to match with the same targets.
+        """
+        source_data_by_label = {}
+        for idx in range(self.source_length):
+            s_data, s_label = self.source_dataset[idx]
+            class_label = s_label[0].item()  # s_label = [class_label, anomaly_label]
+            if class_label not in source_data_by_label:
+                source_data_by_label[class_label] = []
+            source_data_by_label[class_label].append((s_data, s_label))
+
+        # sample n_samples items per label (or all)
+        for cl in source_data_by_label:
+            random.shuffle(source_data_by_label[cl])
+            if self.n_samples != -1:
+                source_data_by_label[cl] = source_data_by_label[cl][: self.n_samples]
+
+        # sample n_samples items from the target (or all)
+        all_target_data = []
+        for idx in range(self.target_length):
+            t_data, t_label = self.target_dataset[idx]
+            all_target_data.append((t_data, t_label))
+        random.shuffle(all_target_data)
+        if self.n_samples == -1:
+            target_samples = all_target_data
+        else:
+            target_samples = all_target_data[: self.n_samples]
+
+        # For each source label, perform 1:1 matching between the list of samples for that label and target_samples
+        pairwise_data = []
+        for cl_label, s_list in source_data_by_label.items():
+            len_min = min(len(s_list), len(target_samples))
+            for i in range(len_min):
+                src_data, src_label = s_list[i]
+                tgt_data, tgt_label = target_samples[i]
+                pairwise_data.append(((src_data, src_label), (tgt_data, tgt_label)))
+
+        return pairwise_data
 
     def __len__(self):
         return max(self.source_length, self.target_length)
 
     def __getitem__(self, idx):
+        if not self._pairwise_data:
+            raise IndexError("No (src, tgt) samples are available in pairwise_data.")
+        
         if self.match_strategy == 'random':
-            src_idx = random.randint(0, self.source_length - 1)
-            tgt_idx = random.randint(0, self.target_length - 1)
-        elif self.match_strategy in ('sequential', 'pairwise'):
-            src_idx = idx % self.source_length
-            tgt_idx = idx % self.target_length
+            pair_idx = random.randint(0, len(self._pairwise_data) - 1)
+            (src_data, src_label), (tgt_data, tgt_label) = self._pairwise_data[pair_idx]
+            return (src_data, src_label), (tgt_data, tgt_label)
+
+        elif self.match_strategy == 'sequential':
+            pair_idx = idx % len(self._pairwise_data)
+            (src_data, src_label), (tgt_data, tgt_label) = self._pairwise_data[pair_idx]
+            return (src_data, src_label), (tgt_data, tgt_label)
+        
         else:
             raise ValueError(f"Unknown match strategy: {self.match_strategy}")
-
-        src_data, src_label = self.source_dataset[src_idx]
-        tgt_data, tgt_label = self.target_dataset[tgt_idx]
-
-        return (src_data, src_label), (tgt_data, tgt_label)
