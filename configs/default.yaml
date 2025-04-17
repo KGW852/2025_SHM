@@ -19,14 +19,14 @@ model:
 # data parameters
 match_strategy: sequential  # random, sequential
 train_n_samples: -1  # if -1: all
-eval_n_samples: 200
+eval_n_samples: 300
 test_n_samples: 100
-batch_size: 64
+batch_size: 32
 n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 2
+epochs: 10
 log_every: 1
 save_every: 1
 
