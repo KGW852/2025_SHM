@@ -148,7 +148,7 @@ class ConvergentSimTrainer:
             deep_svdd_loss_t += svdd_loss_t.item()
             
             # mlflow log: global step
-            if self.mlflow_logger is not None and batch_idx % 10 == 0:
+            if self.mlflow_logger is not None and batch_idx % 40 == 0:
                 global_step = epoch * len(train_loader) + batch_idx
                 self.mlflow_logger.log_metrics({"train_loss_step": loss.item(), "train_simsiam_step": sim_loss.item(), "train_svdd_step": svdd_loss.item(), }, step=global_step)
                 
@@ -176,11 +176,14 @@ class ConvergentSimTrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
+        center_out = self.encoder.deep_svdd.center.detach().cpu().numpy()  # shape (64,)
+        radius_out = self.encoder.deep_svdd.radius.detach().cpu().item()
+
         print(f"[Train] [Epoch {epoch}/{self.epochs}] "
               f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
-              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f}")
+              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | Radius: {radius_out:.4f}")
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t)
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, center_out, radius_out)
 
     def eval_epoch(self, eval_loader, epoch: int):
         self.encoder.eval()
@@ -223,7 +226,7 @@ class ConvergentSimTrainer:
                 deep_svdd_loss_t += svdd_loss_t.item()
 
                 # mlflow log: global step
-                if self.mlflow_logger is not None and batch_idx % 10 == 0:
+                if self.mlflow_logger is not None and batch_idx % 2 == 0:
                     global_step = epoch * len(eval_loader) + batch_idx
                     self.mlflow_logger.log_metrics({"eval_loss_step": loss.item(), "eval_simsiam_step": sim_loss.item(), "eval_svdd_step": svdd_loss.item(), }, step=global_step)
                     
@@ -247,11 +250,14 @@ class ConvergentSimTrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
+        center_out = self.encoder.deep_svdd.center.detach().cpu().numpy()  # shape (64,)
+        radius_out = self.encoder.deep_svdd.radius.detach().cpu().item()
+
         print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
             f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
-            f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f}")
+            f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | Radius: {radius_out:.4f}")
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t)
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, center_out, radius_out)
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -294,22 +300,24 @@ class ConvergentSimTrainer:
 
             # mlflow metrics log
             if self.mlflow_logger is not None:
-                (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t) = train_loss_tuple
+                (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_center, train_radius) = train_loss_tuple
                 metrics = {
                     "train_loss": train_avg,
                     "train_simsiam": train_sim,
                     "train_svdd": train_svdd,
                     "train_svdd_s": train_svdd_s,
                     "train_svdd_t": train_svdd_t,
+                    "radius": train_radius,
                 }
                 if eval_loss_tuple is not None:
-                    (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t) = eval_loss_tuple
+                    (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_center, eval_radius) = eval_loss_tuple
                     metrics.update({
                         "eval_loss": eval_avg,
                         "eval_simsiam": eval_sim,
                         "eval_svdd": eval_svdd,
                         "eval_svdd_s": eval_svdd_s,
                         "eval_svdd_t": eval_svdd_t,
+                        "radius": eval_radius,
                     })
                 self.mlflow_logger.log_metrics(metrics, step=epoch)
 
@@ -324,6 +332,10 @@ class ConvergentSimTrainer:
             if (epoch % self.save_every) == 0:
                 self.save_checkpoint(epoch)
                 last_saved_epoch = epoch
+        
+        # center, radius
+        final_center = self.encoder.deep_svdd.center.detach().cpu().numpy()
+        final_radius = self.encoder.deep_svdd.radius.detach().cpu().item()
 
         # MLflow Registry final model and return run_id, last_saved_epoch
         """
@@ -332,7 +344,7 @@ class ConvergentSimTrainer:
             self.mlflow_logger.register_model(model_path=final_ckpt_path, model_name=self.run_name)
         """
         run_id = self.mlflow_logger.run_id if self.mlflow_logger is not None else None
-        return run_id, last_saved_epoch
+        return run_id, last_saved_epoch, final_center, final_radius
             
         """
         if self.mlflow_logger is not None:

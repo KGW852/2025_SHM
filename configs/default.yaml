@@ -18,8 +18,8 @@ model:
 
 # data parameters
 match_strategy: sequential  # random, sequential
-train_n_samples: -1  # if -1: all
-eval_n_samples: 300
+train_n_samples: -1  # -1: all
+eval_n_samples: -1
 test_n_samples: 100
 batch_size: 32
 n_workers: 8
@@ -45,7 +45,7 @@ scheduler:  # steplr, multisteplr, exponentiallr, cosineannealinglr
   eta_min: 0
 
 early_stopper:
-  use: True
+  use: False
   patience: 3
   mode: min  # min, max
   min_delta: 0.0
@@ -100,11 +100,11 @@ svdd:
 
 # umap parameters
 umap:
-  n_neighbors: 15
+  n_neighbors: 30
   min_dist: 0.1
   n_components: 2
-  random_state: 42
-  metric: cosine
+  random_state: 
+  metric: euclidean
 
 # anomaly score metric
 anomaly:

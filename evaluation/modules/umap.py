@@ -40,52 +40,49 @@ class UMAP:
         self.random_state = random_state
         self.metric = metric  # Always use metric for distance in high-dimensional space
         self.umap_kwargs = umap_kwargs  # Store any additional UMAP parameters provided
+
+        # Save the UMAP instance for later use (assigned during fit_transform)
+        self.reducer = None
+        self.embedding_ = None
+        self.labels_ = None
     
-    def fit_transform(self, embeddings: Union[Dict[str, torch.Tensor], List[torch.Tensor]], labels: Optional[List[str]] = None) -> Tuple[np.ndarray, np.ndarray]:
+
+    def fit_transform(self, 
+                      embeddings: Union[Dict[str, torch.Tensor], List[torch.Tensor]], 
+                      labels: Optional[List[str]] = None
+                     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Combine embeddings from multiple domains and perform UMAP dimensionality reduction to 2D.
-        Args:
-            embeddings: A dictionary mapping each domain label to a PyTorch tensor of shape (N, D),
-                        **or** a list of PyTorch tensors [X1, X2, ...] each of shape (N_i, D).
-            labels: If `embeddings` is provided as a list, `labels` must be a list of domain labels (strings or ints)
-                    of the same length. If `embeddings` is a dict, this is ignored (domain labels come from the dict keys).
-        Returns:
-            A tuple (embeddings_2d, label_array):
-            embeddings_2d: NumPy array of shape (total_points, 2) with UMAP 2D coordinates for all input points.
-            label_array: NumPy array or list of length total_points, containing the domain label for each point.
+        Combine embeddings from multiple domains and perform UMAP dimensionality reduction.
         """
-        # Determine input format and prepare domain-labeled data
         if isinstance(embeddings, dict):
-            # Dictionary of {label: tensor} format
             data_items = list(embeddings.items())
         elif isinstance(embeddings, list):
             if labels is None or len(labels) != len(embeddings):
-                raise ValueError("When providing embeddings as a list, a list of labels of the same length must be provided.")
+                raise ValueError("When providing embeddings as a list, "
+                                 "a list of labels of the same length must be provided.")
             data_items = list(zip(labels, embeddings))
         else:
-            raise ValueError("Embeddings must be a dict of {label: tensor} or a list of tensors with a labels list.")
-        
-        # Verify and collect data
+            raise ValueError("Embeddings must be a dict {label: tensor} or a list of tensors + labels.")
+
         combined_data_list: List[np.ndarray] = []
         combined_labels: List[str] = []
         expected_dim: Optional[int] = None
         
         for domain_label, tensor in data_items:
-            # Ensure tensor is a PyTorch tensor and move to CPU if it's on GPU, then convert to numpy
             if isinstance(tensor, torch.Tensor):
                 tensor_np = tensor.detach().cpu().numpy()
             elif isinstance(tensor, np.ndarray):
-                tensor_np = tensor  # already a numpy array
+                tensor_np = tensor
             else:
-                # Try to convert other sequence types to numpy
-                try:
+                try:  # Try to convert other sequence types to numpy
                     tensor_np = np.array(tensor)
                 except Exception as e:
                     raise ValueError(f"Embedding data for label '{domain_label}' is not a tensor/ndarray and cannot be converted: {e}")
             
             # Validate shape
             if tensor_np.ndim != 2:
-                raise ValueError(f"Embedding data for label '{domain_label}' must be 2-dimensional, got shape {tensor_np.shape}.")
+                raise ValueError(f"Embedding for label '{domain_label}' must be 2D, got {tensor_np.shape}.")
+            
             if expected_dim is None:
                 expected_dim = tensor_np.shape[1]
             elif tensor_np.shape[1] != expected_dim:
@@ -97,39 +94,34 @@ class UMAP:
             num_samples = tensor_np.shape[0]
             combined_labels.extend([domain_label] * num_samples)
         
-        # Combine all domain data into one array
         if len(combined_data_list) == 0:
             raise ValueError("No embeddings provided for UMAP visualization.")
+        
         combined_data = np.vstack(combined_data_list)
         
-        # Configure UMAP with metric and specified parameters
-        reducer = umap.UMAP(n_neighbors=self.n_neighbors,
-                            min_dist=self.min_dist,
-                            n_components=self.n_components,
-                            metric=self.metric,
-                            random_state=self.random_state,
-                            **self.umap_kwargs)
+        # Configure and fit UMAP
+        self.reducer = umap.UMAP(n_neighbors=self.n_neighbors,
+                                 min_dist=self.min_dist,
+                                 n_components=self.n_components,
+                                 metric=self.metric,
+                                 random_state=self.random_state,
+                                 **self.umap_kwargs)
         
-        # Fit and transform the combined data to 2D
-        embeddings_2d = reducer.fit_transform(combined_data)
-        
-        # Convert combined_labels to a numpy array for consistency (optional)
+        embeddings_2d = self.reducer.fit_transform(combined_data)
         label_array = np.array(combined_labels)
         
-        # Store results in the object (optional, for potential later use)
+        # Store for later use
         self.embedding_ = embeddings_2d
         self.labels_ = label_array
         return embeddings_2d, label_array
 
     def plot_embeddings(self, embeddings_umap: Optional[np.ndarray] = None, labels: Optional[np.ndarray] = None,
+                        src_center: Optional[np.ndarray] = None, src_radian: Optional[float] = None,
+                        tgt_center: Optional[np.ndarray] = None, tgt_radian: Optional[float] = None,
                         save_path: Optional[str] = None, show: bool = True) -> None:
         """
         Plot the UMAP-transformed embeddings with color-coded domain labels. Supports 1D, 2D, or 3D embeddings.
-        Args:
-            embeddings_umap: The UMAP-processed embedding array (shape: (n_samples, n_components)). If None, uses `self.embedding_`.
-            labels: The label array of shape (n_samples,). If None, uses `self.labels_`.
-            save_path: If provided, saves the figure to this path.
-            show: Whether to call `plt.show()` to display the figure.
+        Optionally, also plot circles for src/tgt centers and their radii (SVDD).
         """
         if embeddings_umap is None:
             embeddings_umap = self.embedding_
@@ -178,6 +170,24 @@ class UMAP:
             ax.set_ylabel("UMAP Dimension 2")
             ax.set_title(title_str)
 
+            # SVDD center & radius: Transform src_center, tgt_center to UMAP 2D for visualization
+            if self.reducer is not None:
+                if src_center is not None:
+                    center_s_np = src_center.reshape(1, -1)
+                    center_s_2d = self.reducer.transform(center_s_np)  # shape: (1, 2)
+                    ax.scatter(center_s_2d[0, 0], center_s_2d[0, 1], marker='x', s=100, color='red', label='src_center')
+                    if src_radian is not None:  # display radius in 2D space
+                        circle_s = plt.Circle((center_s_2d[0, 0], center_s_2d[0, 1]), radius=src_radian, color='red', fill=False, linestyle='--', label='src_radian')
+                        ax.add_patch(circle_s)
+
+                if tgt_center is not None:
+                    center_t_np = tgt_center.reshape(1, -1)
+                    center_t_2d = self.reducer.transform(center_t_np)
+                    ax.scatter(center_t_2d[0, 0], center_t_2d[0, 1], marker='x', s=100, color='blue', label='tgt_center') 
+                    if tgt_radian is not None:
+                        circle_t = plt.Circle((center_t_2d[0, 0], center_t_2d[0, 1]), radius=tgt_radian, color='blue', fill=False, linestyle='--', label='tgt_radian')
+                        ax.add_patch(circle_t)
+
         # 3D plot
         else:  # embeddings_umap.shape[1] == 3
             ax = fig.add_subplot(111, projection='3d')
@@ -205,18 +215,9 @@ class UMAP:
             plt.show()
 
 
-def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt_lbl, epoch, f_class):
+def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt_lbl, epoch, f_name, src_center=None, src_radian=None, tgt_center=None, tgt_radian=None):
     """
-    Evaluate latent space alignment between source and target embeddings for a given epoch, grouped by class labels.
-    Args:
-        cfg (dict): Configuration dictionary containing UMAP parameters under cfg["umap"].
-        mlflow_logger: MLflow logger object with methods log_artifact(path) and log_metrics(dict, step).
-        src_embed (torch.Tensor): Embeddings from the source domain (shape: [N, dim]).
-        tgt_embed (torch.Tensor): Embeddings from the target domain (shape: [M, dim]).
-        src_lbl (torch.Tensor): (shape: [N])
-        tgt_lbl (torch.Tensor): (shape: [M])
-        epoch (int): Current epoch number (used for logging and naming outputs).
-        f_class (str): feature layer name ("embedding", "projector")
+    Evaluate latent space alignment between source and target embeddings for a given epoch, grouped by class labels. Optionally plot SVDD center & radius.
     """
     # UMAP parameters
     umap_params = cfg.get("umap", {})
@@ -229,7 +230,7 @@ def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt
     model_utils = ModelUtils(cfg)
     save_dir = model_utils.get_save_dir()
     os.makedirs(f"{save_dir}/umap", exist_ok=True)
-    umap_file = f"{save_dir}/umap/umap_epoch{epoch}_{f_class}.png"
+    umap_file = f"{save_dir}/umap/umap_epoch{epoch}_{f_name}.png"
 
     # UMAP instance
     cos_umap = UMAP(
@@ -246,14 +247,15 @@ def plot_latent_alignment(cfg, mlflow_logger, src_embed, tgt_embed, src_lbl, tgt
     for c in unique_labels:
         mask_s = (src_lbl == c)
         if mask_s.any():
-            embeddings_dict[f"label_{c.item()}"] = src_embed[mask_s]
+            embeddings_dict[f"src_class_{c.item()}"] = src_embed[mask_s]
         mask_t = (tgt_lbl == c)
         if mask_t.any():
-            embeddings_dict[f"label_{c.item()}"] = tgt_embed[mask_t]
+            embeddings_dict[f"tgt_class_{c.item()}"] = tgt_embed[mask_t]
 
     # UMAP.plot_embeddings
     embeddings_2d, label_array = cos_umap.fit_transform(embeddings_dict)
-    cos_umap.plot_embeddings(embeddings_umap=embeddings_2d, labels=label_array, save_path=umap_file, show=False)
+    cos_umap.plot_embeddings(embeddings_umap=embeddings_2d, labels=label_array, save_path=umap_file, show=False, 
+                             src_center=src_center, src_radian=src_radian, tgt_center=tgt_center, tgt_radian=tgt_radian)
 
     # Log the UMAP plot image to MLflow
     mlflow_logger.log_artifact(umap_file, artifact_path="alignment")
