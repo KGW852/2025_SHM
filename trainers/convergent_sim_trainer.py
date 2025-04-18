@@ -3,8 +3,10 @@
 import torch
 from tqdm import tqdm
 
-from models.convergent_sim import SimEncoder
+from models.convergent_sim import ConvergentSim
 from models.criterions.simsiam_loss import SimSiamLoss
+from models.criterions.svdd_loss import DeepSVDDLoss
+
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from .tools import Optimizer, Scheduler, EarlyStopper
@@ -23,20 +25,30 @@ class ConvergentSimTrainer:
         self.cfg = cfg
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # model: MLPEncoder + SimSiam
-        self.encoder = SimEncoder(
-            in_dim=cfg["mlp"]["in_dim"],
-            hidden_dims=cfg["mlp"]["in_hidden_dims"],
-            latent_dim=cfg["mlp"]["latent_dim"],
+        # model: ConvergentSim(MLPEncoder + SimSiam + DeepSVDD)
+        self.encoder = ConvergentSim(
+            enc_in_dim=cfg["mlp"]["in_dim"],
+            enc_hidden_dims=cfg["mlp"]["in_hidden_dims"],
+            enc_latent_dim=cfg["mlp"]["latent_dim"],
             dropout=cfg["mlp"]["dropout"],
             proj_hidden_dim=cfg["sim"]["proj_hidden_dim"],
             proj_out_dim=cfg["sim"]["proj_out_dim"],
             pred_hidden_dim=cfg["sim"]["pred_hidden_dim"],
-            pred_out_dim=cfg["sim"]["pred_out_dim"]
+            pred_out_dim=cfg["sim"]["pred_out_dim"],
+            svdd_latent_dim=cfg["svdd"]["latent_dim"]
         ).to(self.device)
 
         # criterion
         self.simsiam_criterion = SimSiamLoss().to(self.device)
+        self.svdd_criterion = DeepSVDDLoss(
+            nu=cfg["svdd"].get("nu", 0.1),
+            reduction=cfg["svdd"].get("reduction", "mean")
+        ).to(self.device)
+
+        # loss, weight param
+        self.recon_loss = cfg["ae"].get("recon", "mae")
+        self.simsiam_lamda = cfg["ae"].get("simsiam_lamda", 1.0)
+        self.svdd_lambda = cfg["ae"].get("svdd_lambda", 1.0)
 
         # optimizer, scheduler, early stopper
         self.optimizer = Optimizer(self.cfg).get_optimizer(self.encoder.parameters())
@@ -46,14 +58,44 @@ class ConvergentSimTrainer:
         # utils: model manage, mlflow
         self.model_utils = ModelUtils(self.cfg)
         self.mlflow_logger = mlflow_logger
-
-        # params
         self.epochs = cfg["epochs"]
         self.log_every = cfg.get("log_every", 1)
         self.save_every = cfg.get("save_every", 1)
 
         # run_name: model_name
         self.run_name = self.model_utils.get_model_name()
+
+    def init_center(self, data_loader, eps=1e-5):
+        """
+        Initialize the center using the mean of the actual data distribution before training
+        Args:
+            data_loader: DataLoader containing only normal data (or entire dataset)
+            eps (float): Constant for correcting values that are too close to zero
+        """
+        print("[DeepSVDD] Initializing center with mean of dataset ...")
+        self.encoder.eval()
+
+        # center vector
+        latent_dim = self.encoder.deep_svdd.latent_dim
+        center_sum = torch.zeros(latent_dim, device=self.device)
+        n_samples = 0
+
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Epoch [Init/{self.epochs}] Center", leave=False)
+        with torch.no_grad():
+            for batch_idx, data in pbar:
+                (x_s, _), (x_t, _) = data  # x_s, x_t: (B, C, T)
+                x_s = x_s.to(self.device)
+                x_t = x_t.to(self.device)
+
+                # forward
+                (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
+                batch_feat = torch.cat([svdd_feat_s, svdd_feat_t], dim=0)  # (2B, latent_dim)
+                center_sum += batch_feat.sum(dim=0)
+                n_samples += batch_feat.size(0)
+
+        center_mean = center_sum / (n_samples + eps)
+        self.encoder.deep_svdd.center.data = center_mean
+        print(f"[DeepSVDD] center initialized. (norm={center_mean.norm():.4f})")
 
     def train_epoch(self, train_loader, epoch: int):
         do_train = (epoch > 0)
@@ -62,6 +104,11 @@ class ConvergentSimTrainer:
         else:
             self.encoder.eval()
         total_loss = 0.0
+        simsiam_loss = 0.0
+        deep_svdd_loss = 0.0
+        deep_svdd_loss_s = 0.0
+        deep_svdd_loss_t = 0.0
+        #last_outputs = None
 
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
         for batch_idx, data in pbar:
@@ -74,11 +121,19 @@ class ConvergentSimTrainer:
             self.optimizer.zero_grad()
 
             # forward
-            e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
+            (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
 
             # loss
             sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-            loss = sim_loss
+
+            center = self.encoder.deep_svdd.center  # shape: [latent_dim]
+            radius = self.encoder.deep_svdd.radius  # shape: []
+
+            svdd_loss_s = self.svdd_criterion(svdd_feat_s, center, radius)
+            svdd_loss_t = self.svdd_criterion(svdd_feat_t, center, radius)
+            svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
+
+            loss = self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
 
             # backprop
             if do_train:
@@ -87,21 +142,54 @@ class ConvergentSimTrainer:
 
             # stats
             total_loss += loss.item()
-            pbar.set_postfix({"loss": loss.item()})
+            simsiam_loss += sim_loss.item()
+            deep_svdd_loss += svdd_loss.item()
+            deep_svdd_loss_s += svdd_loss_s.item()
+            deep_svdd_loss_t += svdd_loss_t.item()
+            
+            # mlflow log: global step
+            if self.mlflow_logger is not None and batch_idx % 10 == 0:
+                global_step = epoch * len(train_loader) + batch_idx
+                self.mlflow_logger.log_metrics({"train_loss_step": loss.item(), "train_simsiam_step": sim_loss.item(), "train_svdd_step": svdd_loss.item(), }, step=global_step)
+                
+            # tqdm
+            pbar.set_postfix({
+                "loss": f"{loss.item():.4f}",
+                "simsiam": f"{sim_loss.item():.4f}",
+                "svdd": f"{svdd_loss.item():.4f}",
+                "svdd_s": f"{svdd_loss_s.item():.4f}",
+                "svdd_t": f"{svdd_loss_t.item():.4f}"
+                })
+            
+            # for returning last batch outputs
+            #last_outputs = (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t)
         
         # scheduler
         if do_train and (self.scheduler is not None):
             self.scheduler.step()
-            
-        avg_loss = total_loss / len(train_loader)
-        print(f"[Train] [Epoch {epoch}/{self.epochs}] "
-              f"SimSiam: {avg_loss:.4f}")
+        
+        # calc avg
+        num_batches = len(train_loader)
+        avg_loss = total_loss / num_batches
+        avg_sim_loss = simsiam_loss / num_batches
+        avg_svdd_loss = deep_svdd_loss / num_batches
+        avg_svdd_loss_s = deep_svdd_loss_s / num_batches
+        avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        return avg_loss
+        print(f"[Train] [Epoch {epoch}/{self.epochs}] "
+              f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
+              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f}")
+
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t)
 
     def eval_epoch(self, eval_loader, epoch: int):
         self.encoder.eval()
         total_loss = 0.0
+        simsiam_loss = 0.0
+        deep_svdd_loss = 0.0
+        deep_svdd_loss_s = 0.0
+        deep_svdd_loss_t = 0.0
+        #last_outputs = None
 
         pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
@@ -112,62 +200,58 @@ class ConvergentSimTrainer:
                 x_t = x_t.to(self.device)
                 y_t = y_t.to(self.device)
 
-                e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
-                sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-                loss = sim_loss
-
-                total_loss += loss.item()
-                pbar.set_postfix({"loss": loss.item()})
-
-        avg_loss = total_loss / len(eval_loader)
-        print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
-              f"SimSiam: {avg_loss:.4f}")
-
-        return avg_loss
-
-    def get_embeddings(self, data_loader):
-        """
-        Iterate through the entire data_loader, extracting (e_s, e_t) embeddings from the encoder.
-        Collect the extracted embeddings into a list (or concatenate into a tensor) and return them.
-        """
-        self.encoder.eval()
-        src_f_enc = []
-        tgt_f_enc = []
-        src_f_proj = []
-        tgt_f_proj = []
-        src_class_lbl = []
-        tgt_class_lbl = []
-
-        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Embedding [{data_loader}]", leave=False)
-        with torch.no_grad():
-            for batch_idx, data in pbar:
-                (x_s, y_s), (x_t, y_t) = data
-                x_s = x_s.to(self.device)
-                class_y_s = y_s[:,0].to(self.device)  # (B,)
-                x_t = x_t.to(self.device)
-                y_t = y_t.to(self.device)
-                class_y_t = y_t[:,0].to(self.device)  # (B,)
-
                 # forward
-                e_s, e_t, z_s, p_s, z_t, p_t = self.encoder(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
 
-                # stack
-                src_f_enc.append(e_s.detach().cpu())
-                tgt_f_enc.append(e_t.detach().cpu())
-                src_f_proj.append(z_s.detach().cpu())
-                tgt_f_proj.append(z_t.detach().cpu())
-                src_class_lbl.append(class_y_s.detach().cpu())
-                tgt_class_lbl.append(class_y_t.detach().cpu())
+                # loss
+                sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
 
-        # combine the embeddings of all batches into a single Tensor
-        src_f_enc = torch.cat(src_f_enc, dim=0)
-        tgt_f_enc = torch.cat(tgt_f_enc, dim=0)
-        src_f_proj = torch.cat(src_f_proj, dim=0)
-        tgt_f_proj = torch.cat(tgt_f_proj, dim=0)
-        src_class_lbl = torch.cat(src_class_lbl, dim=0)
-        tgt_class_lbl = torch.cat(tgt_class_lbl, dim=0)
+                center = self.encoder.deep_svdd.center  # shape: [latent_dim]
+                radius = self.encoder.deep_svdd.radius  # shape: []
 
-        return src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj, src_class_lbl, tgt_class_lbl
+                svdd_loss_s = self.svdd_criterion(svdd_feat_s, center, radius)
+                svdd_loss_t = self.svdd_criterion(svdd_feat_t, center, radius)
+                svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
+
+                loss = self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
+
+                # stats
+                total_loss += loss.item()
+                simsiam_loss += sim_loss.item()
+                deep_svdd_loss += svdd_loss.item()
+                deep_svdd_loss_s += svdd_loss_s.item()
+                deep_svdd_loss_t += svdd_loss_t.item()
+
+                # mlflow log: global step
+                if self.mlflow_logger is not None and batch_idx % 10 == 0:
+                    global_step = epoch * len(eval_loader) + batch_idx
+                    self.mlflow_logger.log_metrics({"eval_loss_step": loss.item(), "eval_simsiam_step": sim_loss.item(), "eval_svdd_step": svdd_loss.item(), }, step=global_step)
+                    
+                # tqdm
+                pbar.set_postfix({
+                    "loss": f"{loss.item():.4f}",
+                    "simsiam": f"{sim_loss.item():.4f}",
+                    "svdd": f"{svdd_loss.item():.4f}",
+                    "svdd_s": f"{svdd_loss_s.item():.4f}",
+                    "svdd_t": f"{svdd_loss_t.item():.4f}"
+                    })
+                
+                # for returning last batch outputs
+                #last_outputs = (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t)
+
+        # calc avg
+        num_batches = len(eval_loader)
+        avg_loss = total_loss / num_batches
+        avg_sim_loss = simsiam_loss / num_batches
+        avg_svdd_loss = deep_svdd_loss / num_batches
+        avg_svdd_loss_s = deep_svdd_loss_s / num_batches
+        avg_svdd_loss_t = deep_svdd_loss_t / num_batches
+
+        print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
+            f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
+            f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f}")
+
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t)
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -199,31 +283,38 @@ class ConvergentSimTrainer:
         
         last_saved_epoch = None
 
+        self.init_center(train_loader, eps=1e-5)
+
         for epoch in range(self.epochs + 1):
-            train_loss = self.train_epoch(train_loader, epoch)  # train
+            train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
 
-            eval_loss = None
+            eval_loss_tuple = None
             if eval_loader is not None and epoch % self.log_every == 0:
-                eval_loss = self.eval_epoch(eval_loader, epoch)  # eval
-
-                # calc umap, NN distace
-                src_f_enc, tgt_f_enc, src_f_proj, tgt_f_proj, src_class_lbl, tgt_class_lbl = self.get_embeddings(eval_loader)  # extract embedding
-                plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                                      src_embed=src_f_enc, tgt_embed=tgt_f_enc, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
-                                      epoch=epoch, f_class="eval_encoder")
-                plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                                      src_embed=src_f_proj, tgt_embed=tgt_f_proj, src_lbl=src_class_lbl, tgt_lbl=tgt_class_lbl, 
-                                      epoch=epoch, f_class="eval_projector")
+                eval_loss_tuple = self.eval_epoch(eval_loader, epoch)  # eval
 
             # mlflow metrics log
             if self.mlflow_logger is not None:
-                metrics = {"train_loss": train_loss}
-                if eval_loss is not None:
-                    metrics["eval_loss"] = eval_loss
+                (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t) = train_loss_tuple
+                metrics = {
+                    "train_loss": train_avg,
+                    "train_simsiam": train_sim,
+                    "train_svdd": train_svdd,
+                    "train_svdd_s": train_svdd_s,
+                    "train_svdd_t": train_svdd_t,
+                }
+                if eval_loss_tuple is not None:
+                    (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t) = eval_loss_tuple
+                    metrics.update({
+                        "eval_loss": eval_avg,
+                        "eval_simsiam": eval_sim,
+                        "eval_svdd": eval_svdd,
+                        "eval_svdd_s": eval_svdd_s,
+                        "eval_svdd_t": eval_svdd_t,
+                    })
                 self.mlflow_logger.log_metrics(metrics, step=epoch)
 
-            if eval_loss is not None and self.early_stopper is not None:  # early stopping check(use val loss)
-                if self.early_stopper.step(eval_loss):
+            if eval_loss_tuple is not None and self.early_stopper is not None:  # early stopping check(use val loss)
+                if self.early_stopper.step(eval_loss_tuple[0]):
                     print(f"Early stopping triggered at epoch {epoch}.")
                     self.save_checkpoint(epoch)
                     last_saved_epoch = epoch

@@ -30,9 +30,6 @@ epochs: 10
 log_every: 1
 save_every: 1
 
-loss:
-  recon_loss: mae
-
 optimizer:
   type: adam
   learning_rate: 1e-4
@@ -58,6 +55,12 @@ early_stopper:
 mlflow:
   use: True
   tracking_uri: file:./logs/mlruns  # using "file:" save mlruns to local dir
+
+# ae parameters
+ae:
+  recon: mae
+  simsiam_lamda: 1.0
+  svdd_lambda: 1.0
 
 # mlp parameters
 mlp:
@@ -88,6 +91,12 @@ sim:
   proj_out_dim: 64
   pred_hidden_dim: 32
   pred_out_dim: 64
+
+# deepSVDD parameters
+svdd:
+  latent_dim: 64
+  nu: 0.1
+  reduction: mean  # mean, sum
 
 # umap parameters
 umap:

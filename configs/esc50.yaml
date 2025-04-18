@@ -16,5 +16,5 @@ test:
 model:
   model_name: convergent_sim
 
-loss:
-  recon_loss: mse
+ae:
+  recon: mse
