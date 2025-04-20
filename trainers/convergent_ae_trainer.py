@@ -207,6 +207,9 @@ class ConvergentAETrainer:
         avg_svdd_loss = deep_svdd_loss / num_batches
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
+        avg_recon_loss = recons_loss / num_batches
+        avg_recon_loss_s = recons_loss_s / num_batches
+        avg_recon_loss_t = recons_loss_t / num_batches
 
         # calc dist_s, dist_t avg
         avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
@@ -216,7 +219,8 @@ class ConvergentAETrainer:
         radius_out = self.model.svdd.radius
 
         print(f"[Train] [Epoch {epoch}/{self.epochs}] "
-              f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
+              f"Avg: {avg_loss:.4f} | Recon: {avg_recon_loss:.4f} | "
+              f"SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
               f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
               f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
               f"Radius: {radius_out.item():.4f}")
@@ -224,6 +228,9 @@ class ConvergentAETrainer:
         if self.mlflow_logger is not None:
             self.mlflow_logger.log_metrics({
                 "train_loss": avg_loss,
+                "train_recon_loss": avg_recon_loss,
+                "train_recon_loss_s": avg_recon_loss_s,
+                "train_recon_loss_t": avg_recon_loss_t,
                 "train_simsiam_loss": avg_sim_loss,
                 "train_svdd_loss": avg_svdd_loss,
                 "train_svdd_loss_s": avg_svdd_loss_s,
@@ -233,7 +240,8 @@ class ConvergentAETrainer:
                 "train_radius": radius_out.item()
             }, step=epoch)
             
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
+        return (avg_loss, avg_recon_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
+                avg_dist_s, avg_dist_t, center_out, radius_out.item())
 
     def eval_epoch(self, eval_loader, epoch: int):
         self.model.eval()
@@ -330,7 +338,8 @@ class ConvergentAETrainer:
                 "eval_radius": radius_out.item()
             }, step=epoch)
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
+                avg_dist_s, avg_dist_t, center_out, radius_out.item())
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
