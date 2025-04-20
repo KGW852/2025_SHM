@@ -33,8 +33,8 @@ class ConvergentSimEvaluator:
         # model
         self.encoder = ConvergentSim(
             enc_in_dim=cfg["mlp"]["in_dim"],
-            enc_hidden_dims=cfg["mlp"]["in_hidden_dims"],
-            enc_latent_dim=cfg["mlp"]["latent_dim"],
+            enc_hidden_dims=cfg["mlp"]["enc_hidden_dims"],
+            enc_latent_dim=cfg["mlp"]["enc_latent_dim"],
             enc_dropout=cfg["mlp"]["dropout"],
             enc_use_batchnorm=cfg["mlp"]["use_batch_norm"],
             proj_hidden_dim=cfg["sim"]["proj_hidden_dim"],

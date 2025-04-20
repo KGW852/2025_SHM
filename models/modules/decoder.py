@@ -24,26 +24,29 @@ class MLPDecoder(BaseDecoder):
         out_channels (int): Number of final channels to reconstruct
         out_seq_len (int): Final time axis length to reconstruct
         dropout (float): Dropout rate
+        use_batchnorm (bool): whether to use batch normalization
     """
-    def __init__(self, latent_dim, hidden_dims, out_channels, out_seq_len, dropout=0.0):
+    def __init__(self, latent_dim, hidden_dims, out_channels, out_seq_len, dropout=0.0, use_batchnorm=False):
         super(MLPDecoder, self).__init__()
-        
         self.out_channels = out_channels
         self.out_seq_len = out_seq_len
         
         layers = []
-        in_dim = latent_dim
+        prev_dim = latent_dim
 
-        # Hidden layer stack
+        # hidden layers
         for h_dim in hidden_dims:
-            layers.append(nn.Linear(in_dim, h_dim))
+            layers.append(nn.Linear(prev_dim, h_dim))
+            if use_batchnorm:
+                layers.append(nn.BatchNorm1d(h_dim))
             layers.append(nn.ReLU())
-            if dropout > 0.0:
-                layers.append(nn.Dropout(p=dropout))
-            in_dim = h_dim
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            prev_dim = h_dim
 
-        # output: out_channels * out_seq_len
-        layers.append(nn.Linear(in_dim, out_channels * out_seq_len))
+        # output: out layer
+        out_dim = out_channels * out_seq_len
+        layers.append(nn.Linear(prev_dim, out_dim))
 
         self.mlp = nn.Sequential(*layers)
 

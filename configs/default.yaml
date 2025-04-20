@@ -65,9 +65,10 @@ ae:
 # mlp parameters
 mlp:
   in_dim: 1024
-  in_hidden_dims: [512, 256, 128]
-  latent_dim: 128
-  out_hidden_dims: [128, 256, 512]
+  enc_hidden_dims: [512, 256, 128]
+  enc_latent_dim: 128
+  dec_latent_dim: 32
+  dec_hidden_dims: [128, 256, 512]
   out_channels: 2
   out_seq_len: 512
   dropout: 0.1
@@ -96,8 +97,8 @@ sim:
 # deepSVDD parameters
 svdd:
   in_dim: 64
-  hidden_dims: [32, 16, 8]
-  latent_dim: 8
+  hidden_dims: [32, 16, 8, 4]
+  latent_dim: 4
   dropout: 0.1
   use_batch_norm: True
   nu: 0.1
