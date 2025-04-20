@@ -58,7 +58,8 @@ mlflow:
 
 # ae parameters
 ae:
-  recon: mae
+  recon_type: mae
+  reduction: mean
   simsiam_lamda: 1.0
   svdd_lambda: 1.0
 
