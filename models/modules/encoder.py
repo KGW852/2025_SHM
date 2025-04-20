@@ -23,22 +23,25 @@ class MLPEncoder(BaseEncoder):
         hidden_dims (list): List of intermediate layer sizes
         latent_dim (int): Final latent dimension
         dropout (float): Dropout rate
+        use_batchnorm (bool): whether to use batch normalization
     """
-    def __init__(self, in_dim, hidden_dims, latent_dim, dropout=0.0):
+    def __init__(self, in_dim, hidden_dims, latent_dim, dropout=0.0, use_batchnorm=False):
         super(MLPEncoder, self).__init__()
         layers = []
-        in_dim = in_dim
+        prev_dim = in_dim
 
-        # Hidden layer stack
+        # hidden layers
         for h_dim in hidden_dims:
-            layers.append(nn.Linear(in_dim, h_dim))
+            layers.append(nn.Linear(prev_dim, h_dim))
+            if use_batchnorm:
+                layers.append(nn.BatchNorm1d(h_dim))
             layers.append(nn.ReLU())
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
-            in_dim = h_dim
+            prev_dim = h_dim
 
-        # output: latent dim layer
-        layers.append(nn.Linear(in_dim, latent_dim))
+        # output: latent layer
+        layers.append(nn.Linear(prev_dim, latent_dim))
 
         self.mlp = nn.Sequential(*layers)
 
@@ -71,8 +74,8 @@ class TCNEncoder(BaseEncoder):
         kernel_size=3,
         stride=2,
         dilation_base=2,
-        use_batch_norm=False,
-        dropout=0.0
+        dropout=0.0,
+        use_batch_norm=False
     ):
         super(TCNEncoder, self).__init__()
         

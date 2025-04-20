@@ -10,7 +10,6 @@ from models.criterions.svdd_loss import DeepSVDDLoss
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from .tools import Optimizer, Scheduler, EarlyStopper
-from evaluation.modules.umap import plot_latent_alignment
 
 
 class ConvergentSimTrainer:
@@ -30,12 +29,17 @@ class ConvergentSimTrainer:
             enc_in_dim=cfg["mlp"]["in_dim"],
             enc_hidden_dims=cfg["mlp"]["in_hidden_dims"],
             enc_latent_dim=cfg["mlp"]["latent_dim"],
-            dropout=cfg["mlp"]["dropout"],
+            enc_dropout=cfg["mlp"]["dropout"],
+            enc_use_batchnorm=cfg["mlp"]["use_batch_norm"],
             proj_hidden_dim=cfg["sim"]["proj_hidden_dim"],
             proj_out_dim=cfg["sim"]["proj_out_dim"],
             pred_hidden_dim=cfg["sim"]["pred_hidden_dim"],
             pred_out_dim=cfg["sim"]["pred_out_dim"],
-            svdd_latent_dim=cfg["svdd"]["latent_dim"]
+            svdd_in_dim=cfg["svdd"]["in_dim"],
+            svdd_hidden_dims=cfg["svdd"]["hidden_dims"],
+            svdd_latent_dim=cfg["svdd"]["latent_dim"],
+            svdd_dropout=cfg["svdd"]["dropout"],
+            svdd_use_batchnorm=cfg["svdd"]["use_batch_norm"]
         ).to(self.device)
 
         # criterion
@@ -67,7 +71,7 @@ class ConvergentSimTrainer:
 
     def init_center(self, data_loader, eps=1e-5):
         """
-        Initialize the center using the mean of the actual data distribution before training
+        Initialize the center of the actual data distribution before training
         Args:
             data_loader: DataLoader containing only normal data (or entire dataset)
             eps (float): Constant for correcting values that are too close to zero
@@ -76,26 +80,29 @@ class ConvergentSimTrainer:
         self.encoder.eval()
 
         # center vector
-        latent_dim = self.encoder.deep_svdd.latent_dim
-        center_sum = torch.zeros(latent_dim, device=self.device)
+        latent_dim = self.encoder.svdd.latent_dim
+        c = torch.zeros(latent_dim, device=self.device)
         n_samples = 0
 
         pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Epoch [Init/{self.epochs}] Center", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
-                (x_s, _), (x_t, _) = data  # x_s, x_t: (B, C, T)
+                (x_s, _, _), (x_t, _, _) = data  # x_s, x_t: (B, C, T)
                 x_s = x_s.to(self.device)
                 x_t = x_t.to(self.device)
 
                 # forward
-                (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
-                batch_feat = torch.cat([svdd_feat_s, svdd_feat_t], dim=0)  # (2B, latent_dim)
-                center_sum += batch_feat.sum(dim=0)
-                n_samples += batch_feat.size(0)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t) = self.encoder(x_s, x_t)
+                c += torch.sum(feat_s, dim=0)
+                n_samples += feat_s.size(0)
 
-        center_mean = center_sum / (n_samples + eps)
-        self.encoder.deep_svdd.center.data = center_mean
-        print(f"[DeepSVDD] center initialized. (norm={center_mean.norm():.4f})")
+        c /= n_samples
+
+        eps = eps
+        mask = torch.abs(c) < eps
+        c[mask] = 0.0
+        self.encoder.svdd.center.data = c
+        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f})")
 
     def train_epoch(self, train_loader, epoch: int):
         do_train = (epoch > 0)
@@ -108,11 +115,15 @@ class ConvergentSimTrainer:
         deep_svdd_loss = 0.0
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
+
+        sum_dist_s = 0.0
+        sum_dist_t = 0.0
+        count_samples = 0
         #last_outputs = None
 
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
         for batch_idx, data in pbar:
-            (x_s, y_s), (x_t, y_t) = data  # x_s, x_t: (B, C, T)
+            (x_s, y_s, _), (x_t, y_t, _) = data  # x_s, x_t: (B, C, T)
             x_s = x_s.to(self.device)
             y_s = y_s.to(self.device)
             x_t = x_t.to(self.device)
@@ -121,16 +132,17 @@ class ConvergentSimTrainer:
             self.optimizer.zero_grad()
 
             # forward
-            (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
+            (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t) = self.encoder(x_s, x_t)
+            
+            # dist_s, dist_t: L2^2 distance (B,)
+            sum_dist_s += dist_s.detach().sum().item()
+            sum_dist_t += dist_t.detach().sum().item()
+            count_samples += dist_s.size(0)
 
             # loss
             sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-
-            center = self.encoder.deep_svdd.center  # shape: [latent_dim]
-            radius = self.encoder.deep_svdd.radius  # shape: []
-
-            svdd_loss_s = self.svdd_criterion(svdd_feat_s, center, radius)
-            svdd_loss_t = self.svdd_criterion(svdd_feat_t, center, radius)
+            svdd_loss_s = self.svdd_criterion(feat_s, self.encoder.svdd.center, self.encoder.svdd.radius)
+            svdd_loss_t = self.svdd_criterion(feat_t, self.encoder.svdd.center, self.encoder.svdd.radius)
             svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
             loss = self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
@@ -176,14 +188,32 @@ class ConvergentSimTrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        center_out = self.encoder.deep_svdd.center.detach().cpu().numpy()  # shape (64,)
-        radius_out = self.encoder.deep_svdd.radius.detach().cpu().item()
+        # calc dist_s, dist_t avg
+        avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
+        avg_dist_t = sum_dist_t / count_samples if count_samples > 0 else 0.0
+
+        center_out = self.encoder.svdd.center
+        radius_out = self.encoder.svdd.radius
 
         print(f"[Train] [Epoch {epoch}/{self.epochs}] "
               f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
-              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | Radius: {radius_out:.4f}")
+              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
+              f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
+              f"Radius: {radius_out.item():.4f}")
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, center_out, radius_out)
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.log_metrics({
+                "train_loss": avg_loss,
+                "train_simsiam_loss": avg_sim_loss,
+                "train_svdd_loss": avg_svdd_loss,
+                "train_svdd_loss_s": avg_svdd_loss_s,
+                "train_svdd_loss_t": avg_svdd_loss_t,
+                "train_mean_dist_s": avg_dist_s,
+                "train_mean_dist_t": avg_dist_t,
+                "train_radius": radius_out.item()
+            }, step=epoch)
+            
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
 
     def eval_epoch(self, eval_loader, epoch: int):
         self.encoder.eval()
@@ -192,28 +222,33 @@ class ConvergentSimTrainer:
         deep_svdd_loss = 0.0
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
+
+        sum_dist_s = 0.0
+        sum_dist_t = 0.0
+        count_samples = 0
         #last_outputs = None
 
         pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
-                (x_s, y_s), (x_t, y_t) = data
+                (x_s, y_s, _), (x_t, y_t, _) = data
                 x_s = x_s.to(self.device)
                 y_s = y_s.to(self.device)
                 x_t = x_t.to(self.device)
                 y_t = y_t.to(self.device)
 
                 # forward
-                (e_s, e_t, z_s, p_s, z_t, p_t, svdd_feat_s, svdd_feat_t) = self.encoder(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t) = self.encoder(x_s, x_t)
 
+                # dist_s, dist_t: L2^2 distance (B,)
+                sum_dist_s += dist_s.detach().sum().item()
+                sum_dist_t += dist_t.detach().sum().item()
+                count_samples += dist_s.size(0)
+                
                 # loss
                 sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-
-                center = self.encoder.deep_svdd.center  # shape: [latent_dim]
-                radius = self.encoder.deep_svdd.radius  # shape: []
-
-                svdd_loss_s = self.svdd_criterion(svdd_feat_s, center, radius)
-                svdd_loss_t = self.svdd_criterion(svdd_feat_t, center, radius)
+                svdd_loss_s = self.svdd_criterion(feat_s, self.encoder.svdd.center, self.encoder.svdd.radius)
+                svdd_loss_t = self.svdd_criterion(feat_t, self.encoder.svdd.center, self.encoder.svdd.radius)
                 svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
                 loss = self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
@@ -250,14 +285,32 @@ class ConvergentSimTrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        center_out = self.encoder.deep_svdd.center.detach().cpu().numpy()  # shape (64,)
-        radius_out = self.encoder.deep_svdd.radius.detach().cpu().item()
+        # calc dist_s, dist_t avg
+        avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
+        avg_dist_t = sum_dist_t / count_samples if count_samples > 0 else 0.0
+
+        center_out = self.encoder.svdd.center
+        radius_out = self.encoder.svdd.radius
 
         print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
-            f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
-            f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | Radius: {radius_out:.4f}")
+              f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
+              f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
+              f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
+              f"Radius: {radius_out.item():.4f}")
+        
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.log_metrics({
+                "eval_loss": avg_loss,
+                "eval_simsiam_loss": avg_sim_loss,
+                "eval_svdd_loss": avg_svdd_loss,
+                "eval_svdd_loss_s": avg_svdd_loss_s,
+                "eval_svdd_loss_t": avg_svdd_loss_t,
+                "eval_mean_dist_s": avg_dist_s,
+                "eval_mean_dist_t": avg_dist_t,
+                "eval_radius": radius_out.item()
+            }, step=epoch)
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, center_out, radius_out)
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -293,33 +346,12 @@ class ConvergentSimTrainer:
 
         for epoch in range(self.epochs + 1):
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
+            (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t, train_center, train_radius) = train_loss_tuple
 
             eval_loss_tuple = None
             if eval_loader is not None and epoch % self.log_every == 0:
                 eval_loss_tuple = self.eval_epoch(eval_loader, epoch)  # eval
-
-            # mlflow metrics log
-            if self.mlflow_logger is not None:
-                (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_center, train_radius) = train_loss_tuple
-                metrics = {
-                    "train_loss": train_avg,
-                    "train_simsiam": train_sim,
-                    "train_svdd": train_svdd,
-                    "train_svdd_s": train_svdd_s,
-                    "train_svdd_t": train_svdd_t,
-                    "radius": train_radius,
-                }
-                if eval_loss_tuple is not None:
-                    (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_center, eval_radius) = eval_loss_tuple
-                    metrics.update({
-                        "eval_loss": eval_avg,
-                        "eval_simsiam": eval_sim,
-                        "eval_svdd": eval_svdd,
-                        "eval_svdd_s": eval_svdd_s,
-                        "eval_svdd_t": eval_svdd_t,
-                        "radius": eval_radius,
-                    })
-                self.mlflow_logger.log_metrics(metrics, step=epoch)
+                (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_dist_s, eval_dist_t, eval_center, eval_radius) = eval_loss_tuple
 
             if eval_loss_tuple is not None and self.early_stopper is not None:  # early stopping check(use val loss)
                 if self.early_stopper.step(eval_loss_tuple[0]):
@@ -334,8 +366,8 @@ class ConvergentSimTrainer:
                 last_saved_epoch = epoch
         
         # center, radius
-        final_center = self.encoder.deep_svdd.center.detach().cpu().numpy()
-        final_radius = self.encoder.deep_svdd.radius.detach().cpu().item()
+        final_center = self.encoder.svdd.center  # tensor: [latent_dim]
+        final_radius = self.encoder.svdd.radius  # param, float: [1]
 
         # MLflow Registry final model and return run_id, last_saved_epoch
         """

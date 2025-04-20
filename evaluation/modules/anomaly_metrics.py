@@ -4,7 +4,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve
+
+from utils.csv_utils import save_csv
 
 
 class AnomalyScore(nn.Module):
@@ -22,7 +25,7 @@ class AnomalyScore(nn.Module):
         self.dist_mean = None
         self.dist_std = None
 
-    def simsiam_anomaly_score(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor) -> torch.Tensor:
+    def simsiam_anomaly_score(self, z1: torch.Tensor, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
         """
         Calc SimSiam anomaly score per-sample
         """
@@ -35,72 +38,82 @@ class AnomalyScore(nn.Module):
         loss_12 = -(p1_norm * z2_norm).sum(dim=1)  # shape (B,)
         loss_21 = -(p2_norm * z1_norm).sum(dim=1)
 
-        simsiam_scores = 0.5 * (loss_12 + loss_21)  # shape (B,)
+        simsiam_score = 0.5 * (loss_12 + loss_21)  # shape (B,)
 
-        return simsiam_scores
+        return simsiam_score
     
-    def distance_anomaly_score(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor) -> torch.Tensor:
+    def distance_anomaly_score(self, feature: torch.Tensor, center: torch.Tensor):
+        """
+        SVDD distance score per-sample
+        """
+        distance_score = torch.sum((feature - center) ** 2, dim=1)
+        return distance_score
+
+    def distribution_anomaly_score(self):
         pass
 
-    def distribution_anomaly_score(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor) -> torch.Tensor:
-        pass
-
-    def anomaly_score(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor) -> torch.Tensor:
+    def anomaly_score(self, **kwargs) -> torch.Tensor:
         if self.method == 'simsiam':
-            anomaly_scores = self.simsiam_anomaly_score(p1=p1, z2=z2, p2=p2, z1=z1)
+            z1 = kwargs.get('z1', None)
+            p1 = kwargs.get('p1', None)
+            z2 = kwargs.get('z2', None)
+            p2 = kwargs.get('p2', None)
+            if z1 is None or p1 is None or z2 is None or p2 is None:
+                raise ValueError("For 'simsiam' method, please provide z1, p1, z2, p2.")
+            anomaly_score = self.simsiam_anomaly_score(z1, p1, z2, p2)
+
         elif self.method == 'distance':
-            anomaly_scores = self.distance_anomaly_score(p1=p1, z2=z2, p2=p2, z1=z1)
+            feature = kwargs.get('feature', None)
+            center = kwargs.get('center', None)
+            if feature is None or center is None:
+                raise ValueError("For 'distance' method, please provide 'feature' and 'center'.")
+            anomaly_score = self.distance_anomaly_score(feature, center)
+
         elif self.method == 'distribution':
-            anomaly_scores = self.distribution_anomaly_score(p1=p1, z2=z2, p2=p2, z1=z1)
+            pass
+
         else:
             raise ValueError(f"Unknown anomaly detection method: {self.method}")
 
-        return anomaly_scores
+        return anomaly_score
 
-class AnomalyDetector:
+class AnomalyMetric:
     """
-    Evaluate anomaly detection performance by finding an optimal threshold on continuous anomaly scores and computing metrics.
-    Args:
-        anomaly_score (AnomalyScore): An instance of the AnomalyScore class.
+    Evaluate accuracy, precision, recall, f1: classify metrics
     """
-    def __init__(self, cfg, anomaly_score: AnomalyScore):
-        self.anomaly_score = anomaly_score
+    def __init__(self, cfg, file_name, y_true, y_score):
+        self.cfg = cfg
+        self.thresholded = cfg["anomaly"].get("thresholded", None)
+
+        self.file_name_arr = np.array(file_name, dtype=object)
+        self.y_true_arr = np.array(y_true)
+        self.y_score_arr = np.array(y_score)
+
         self.best_threshold = None
+        self.results_dict = None
 
-    def evaluate(self, p1: torch.Tensor, z2: torch.Tensor, p2: torch.Tensor, z1: torch.Tensor, y_true: torch.Tensor, return_thresholded_preds: bool = False):
-        """
-        Anomaly score -> auto threshold -> (pred_label vs true_label) -> metrics
-        """
-        # anomaly score
-        anomaly_scores = self.anomaly_score.anomaly_score(p1, z2, p2, z1)  # (B,)
-        
-        # tensor to numpy
-        anomaly_scores = anomaly_scores.detach().cpu().numpy()
-        y_true = y_true.detach().cpu().numpy()
-
+    def calc_metric(self):
         # calc ROC-AUC, FPR/TPR, threshold
-        auc_val = roc_auc_score(y_true, anomaly_scores)
-        fpr, tpr, thresholds = roc_curve(y_true, anomaly_scores, pos_label=1)
+        auc_val = roc_auc_score(self.y_true_arr, self.y_score_arr)
 
-        best_f1 = -1
-        best_threshold = 0
-        for thr in thresholds:
-            y_pred = (anomaly_scores >= thr).astype(int)
-            f1v = f1_score(y_true, y_pred)
-            if f1v > best_f1:
-                best_f1 = f1v
-                best_threshold = thr
-        self.best_threshold = best_threshold
-
-        y_pred_opt = (anomaly_scores >= best_threshold).astype(int)
+        # threshold
+        if self.thresholded is None:  # ROC curve: fpr, tpr, thresholds
+            fpr, tpr, roc_thresholds = roc_curve(self.y_true_arr, self.y_score_arr, pos_label=1)
+            j_scores = tpr - fpr
+            best_idx = np.argmax(j_scores)
+            best_threshold = roc_thresholds[best_idx]
+        else:  # user defined threshold(float)
+            best_threshold = self.thresholded
+        
+        y_pred = (self.y_score_arr > best_threshold).astype(int)
 
         # metric
-        acc = accuracy_score(y_true, y_pred_opt)
-        prec = precision_score(y_true, y_pred_opt, zero_division=0)
-        rec = recall_score(y_true, y_pred_opt, zero_division=0)
-        f1v = f1_score(y_true, y_pred_opt, zero_division=0)
+        acc = accuracy_score(self.y_true_arr, y_pred)
+        prec = precision_score(self.y_true_arr, y_pred, zero_division=0)
+        rec = recall_score(self.y_true_arr, y_pred, zero_division=0)
+        f1v = f1_score(self.y_true_arr, y_pred, zero_division=0)
 
-        results_dict = {
+        self.results_dict = {
             'accuracy': acc,
             'precision': prec,
             'recall': rec,
@@ -108,8 +121,22 @@ class AnomalyDetector:
             'auc': auc_val,
             'threshold': best_threshold
         }
+        return self.results_dict
 
-        if return_thresholded_preds:
-            return results_dict, y_pred_opt, anomaly_scores
-        else:
-            return results_dict, anomaly_scores
+    def save_anomaly_scores_as_csv(self, data_csv_path, metric_csv_path):
+        if self.y_true_arr is None or self.y_score_arr is None or self.results_dict is None:
+            raise ValueError("No data to save. Please run process_metric first.")
+        
+        # save score to csv per data
+        rows_data = [["filename", "label", "score"]]
+        for filename, label, score in zip(self.file_name_arr, self.y_true_arr, self.y_score_arr):
+            rows_data.append([filename, label, score])
+
+        save_csv(rows_data, data_csv_path)
+
+        # save metric to csv
+        rows_metric = [["metric", "value"]]
+        for k, v in self.results_dict.items():
+            rows_metric.append([k, v])
+
+        save_csv(rows_metric, metric_csv_path)

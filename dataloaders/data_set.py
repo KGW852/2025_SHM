@@ -44,6 +44,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         csv_path = self.file_paths[idx]
+        file_name = os.path.basename(csv_path)
         rows = read_csv(csv_path, skip_header=True)
 
         ch1_list = []
@@ -69,7 +70,7 @@ class CustomDataset(Dataset):
         class_label, anomaly_label = self.label_func(csv_path)
         label_tensor = torch.tensor([class_label, anomaly_label], dtype=torch.long)
 
-        return data_tensor, label_tensor
+        return data_tensor, label_tensor, file_name
     
 class DomainDataset(Dataset):
     """
@@ -98,11 +99,11 @@ class DomainDataset(Dataset):
         """
         source_data_by_label = {}
         for idx in range(self.source_length):
-            s_data, s_label = self.source_dataset[idx]
+            s_data, s_label, s_path = self.source_dataset[idx]
             class_label = s_label[0].item()  # s_label = [class_label, anomaly_label]
             if class_label not in source_data_by_label:
                 source_data_by_label[class_label] = []
-            source_data_by_label[class_label].append((s_data, s_label))
+            source_data_by_label[class_label].append((s_data, s_label, s_path))
 
         # sampling n_samples items per label (or all)
         for cl_label in source_data_by_label:
@@ -112,8 +113,8 @@ class DomainDataset(Dataset):
         # sampling n_samples items from the target (or all)
         all_target_data = []
         for idx in range(self.target_length):
-            t_data, t_label = self.target_dataset[idx]
-            all_target_data.append((t_data, t_label))
+            t_data, t_label, t_path = self.target_dataset[idx]
+            all_target_data.append((t_data, t_label, t_path))
         if self.n_samples != -1 and len(all_target_data) > self.n_samples:
             all_target_data = all_target_data[: self.n_samples]
 
@@ -140,7 +141,7 @@ class DomainDataset(Dataset):
         for cl_label, src_list in source_data_by_label.items():
             group_len = len(src_list)
             for i in range(group_len):
-                src_data, src_label = src_list[i]
+                src_data, src_label, src_path = src_list[i]
                 if i < L_max:
                     tgt_idx = pattern_idxs[i]
                 else:
@@ -149,8 +150,8 @@ class DomainDataset(Dataset):
                     else:  # 'random'
                         tgt_idx = random.randint(0, len_tgt - 1)
 
-                tgt_data, tgt_label = all_target_data[tgt_idx]
-                pairwise_data.append(((src_data, src_label), (tgt_data, tgt_label)))
+                tgt_data, tgt_label, tgt_path = all_target_data[tgt_idx]
+                pairwise_data.append(((src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path)))
 
         return pairwise_data
 
@@ -160,6 +161,6 @@ class DomainDataset(Dataset):
     def __getitem__(self, idx):
         if idx >= len(self.pairwise_data):
             raise IndexError("Index out of range for the constructed pairwise_data.")
-        (src_data, src_label), (tgt_data, tgt_label) = self.pairwise_data[idx]
+        (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path) = self.pairwise_data[idx]
 
-        return (src_data, src_label), (tgt_data, tgt_label)
+        return (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path)

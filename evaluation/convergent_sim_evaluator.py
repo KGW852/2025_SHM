@@ -2,7 +2,7 @@
 
 import os
 import torch
-import csv
+import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
@@ -10,8 +10,9 @@ from tqdm import tqdm
 from models.convergent_sim import ConvergentSim
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
-from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyDetector
-from evaluation.modules.umap import plot_latent_alignment
+from utils.datalist_utils import remove_duplicates
+from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
+from evaluation.modules.umap import UMAPPlot
 
 class ConvergentSimEvaluator:
     """
@@ -26,20 +27,25 @@ class ConvergentSimEvaluator:
     def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, run_id: str, last_epoch: int, device: torch.device = None, final_center=None, final_radius=None):
         self.cfg = cfg
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.final_center = final_center
-        self.final_radius = final_radius
+        self.center = final_center
+        self.radius = final_radius
 
         # model
         self.encoder = ConvergentSim(
-            enc_in_dim=self.cfg["mlp"]["in_dim"],
-            enc_hidden_dims=self.cfg["mlp"]["in_hidden_dims"],
-            enc_latent_dim=self.cfg["mlp"]["latent_dim"],
-            dropout=self.cfg["mlp"]["dropout"],
-            proj_hidden_dim=self.cfg["sim"]["proj_hidden_dim"],
-            proj_out_dim=self.cfg["sim"]["proj_out_dim"],
-            pred_hidden_dim=self.cfg["sim"]["pred_hidden_dim"],
-            pred_out_dim=self.cfg["sim"]["pred_out_dim"],
-            svdd_latent_dim=self.cfg["svdd"]["latent_dim"]
+            enc_in_dim=cfg["mlp"]["in_dim"],
+            enc_hidden_dims=cfg["mlp"]["in_hidden_dims"],
+            enc_latent_dim=cfg["mlp"]["latent_dim"],
+            enc_dropout=cfg["mlp"]["dropout"],
+            enc_use_batchnorm=cfg["mlp"]["use_batch_norm"],
+            proj_hidden_dim=cfg["sim"]["proj_hidden_dim"],
+            proj_out_dim=cfg["sim"]["proj_out_dim"],
+            pred_hidden_dim=cfg["sim"]["pred_hidden_dim"],
+            pred_out_dim=cfg["sim"]["pred_out_dim"],
+            svdd_in_dim=cfg["svdd"]["in_dim"],
+            svdd_hidden_dims=cfg["svdd"]["hidden_dims"],
+            svdd_latent_dim=cfg["svdd"]["latent_dim"],
+            svdd_dropout=cfg["svdd"]["dropout"],
+            svdd_use_batchnorm=cfg["svdd"]["use_batch_norm"]
         ).to(self.device)
 
         # utils: model manage, mlflow
@@ -49,10 +55,9 @@ class ConvergentSimEvaluator:
         self.last_epoch = last_epoch
 
         # params
+        self.anomaly_score = AnomalyScore(self.cfg)
+        self.umap = UMAPPlot(self.cfg)
         self.method = cfg["anomaly"]["method"]
-        self.anomaly_score_fn = AnomalyScore(self.cfg)
-        self.anomaly_detector = AnomalyDetector(self.cfg, self.anomaly_score_fn)
-        self.return_thresholded_preds = cfg["anomaly"].get("return_thresholded_preds", False)
 
     def test_epoch(self, data_loader, epoch):
         ckpt_file = self.model_utils.get_file_name(epoch)
@@ -64,75 +69,52 @@ class ConvergentSimEvaluator:
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
         self.encoder.eval()
 
-        es_list, et_list = [], []
-        zs_list, ps_list, zt_list, pt_list = [], [], [], []
-        svdds_list, svddt_list = [], []
-        cls_ys_list, cls_yt_list, ano_ys_list = [], [], []
+        src_results, tgt_results = [], []
 
         pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
-                (x_s, y_s), (x_t, y_t) = data  # y_s, y_t: tensor([class_label, anomaly_label])
-                cls_ys = y_s[:,0]  # (B,)
-                cls_yt = y_t[:,0]
-                ano_ys = y_s[:,1]
-                ano_yt = y_t[:,1]
-
-                x_s = x_s.to(self.device)
-                x_t = x_t.to(self.device)
+                (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path) = data  # src_label, tgt_label: tensor([class_label, anomaly_label])
+                x_s = src_data.to(self.device)
+                x_t = tgt_data.to(self.device)
 
                 # forward
-                es, et, zs, ps, zt, pt, svdds, svddt = self.encoder(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t) = self.encoder(x_s, x_t)
 
-                # stack
-                es_list.append(es.cpu())
-                et_list.append(et.cpu())
-                zs_list.append(zs.cpu())
-                ps_list.append(ps.cpu())
-                zt_list.append(zt.cpu())
-                pt_list.append(pt.cpu())
-                svdds_list.append(svdds.cpu())
-                svddt_list.append(svddt.cpu())
+                batch_size = len(src_path)
+                for i in range(batch_size):
+                    class_label_src = src_label[i][0].item()
+                    anomaly_label_src = src_label[i][1].item()
+                    class_label_tgt = tgt_label[i][0].item()
+                    anomaly_label_tgt = tgt_label[i][1].item()
 
-                cls_ys_list.append(cls_ys.cpu())
-                cls_yt_list.append(cls_yt.cpu())
-                ano_ys_list.append(ano_ys.cpu())
-                
-        # tensor concat
-        es_list = torch.cat(es_list, dim=0)
-        et_list = torch.cat(et_list, dim=0)
-        zs_list = torch.cat(zs_list, dim=0)
-        ps_list = torch.cat(ps_list, dim=0)
-        zt_list = torch.cat(zt_list, dim=0)
-        pt_list = torch.cat(pt_list, dim=0)
-        svdds_list = torch.cat(svdds_list, dim=0)
-        svddt_list = torch.cat(svddt_list, dim=0)
+                    # results
+                    src_results.append({
+                        "file_name"     : src_path[i],
+                        "encoder"       : e_s[i].cpu().numpy(),
+                        "projector"     : z_s[i].cpu().numpy(),
+                        "feature"       : feat_s[i].cpu().numpy(),
+                        "distance"      : dist_s[i].cpu().numpy(),
+                        "class_label"   : class_label_src,
+                        "anomaly_label" : anomaly_label_src,
+                        "domain"        : "src"
+                    })
+                    tgt_results.append({
+                        "file_name"     : tgt_path[i],
+                        "encoder"       : e_t[i].cpu().numpy(),
+                        "projector"     : z_t[i].cpu().numpy(),
+                        "feature"       : feat_t[i].cpu().numpy(),
+                        "distance"      : dist_t[i].cpu().numpy(),
+                        "class_label"   : class_label_tgt,
+                        "anomaly_label" : anomaly_label_tgt,
+                        "domain"        : "tgt"
+                    })
 
-        cls_ys_list = torch.cat(cls_ys_list, dim=0).long()
-        cls_yt_list = torch.cat(cls_yt_list, dim=0).long()
-        ano_ys_list = torch.cat(ano_ys_list, dim=0).long()
-        """
-        # debug
-        unique_class_labels = torch.unique(cls_ys_list)
-        print(f"[Debug] cls_ys_list shape: {unique_class_labels.shape}")
-        print(f"[Debug] unique class labels: {unique_class_labels}")
-        unique_anomaly_labels = torch.unique(ano_ys_list)
-        print(f"[Debug] ano_ys_list shape: {unique_anomaly_labels.shape}")
-        print(f"[Debug] unique ano_ys_list labels: {unique_anomaly_labels}")
-        """
-        # Evaluation: AnomalyDetector
-        anomaly_dict = {}
-        y_pred_opt, anomaly_scores = None, None
-        
-        ret = self.anomaly_detector.evaluate(p1=ps_list, z2=zt_list, p2=pt_list, z1=zs_list, 
-                                             y_true=ano_ys_list, return_thresholded_preds=self.return_thresholded_preds)
-        anomaly_dict, y_pred_opt, anomaly_scores = ret
+                    src_results = remove_duplicates(src_results, key_name="file_name")
+                    tgt_results = remove_duplicates(tgt_results, key_name="file_name")
+                    combined_results = src_results + tgt_results
 
-        # (Optional) csv save
-        self.save_anomaly_scores_as_csv(epoch=epoch, anomaly_labels=ano_ys_list, anomaly_scores=anomaly_scores, y_pred_opt=y_pred_opt)
-        print(f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method} | ", anomaly_dict)
-
-        return anomaly_dict, es_list, et_list, zs_list, zt_list, svdds_list, svddt_list, cls_ys_list, cls_yt_list
+        return combined_results
 
     def run(self, eval_loader, test_loader):
         """
@@ -140,42 +122,89 @@ class ConvergentSimEvaluator:
         """
         if self.mlflow_logger is not None and self.run_id is not None:
             self.mlflow_logger.start_run(self.run_id)
+
+        # evaluation: test_loader
+        test_results = self.test_epoch(test_loader, self.last_epoch)
+
+        # evaluation: extract dict
+        file_names = []
+        y_true = []
+        y_scores = []
+
+        enc_list = []
+        feat_list = []
+        class_labels = []
+        anomaly_labels = []
+
+        for res in test_results:
+            file_name = res["file_name"]
+            anomaly_label = res["anomaly_label"]
+            feat = torch.tensor(res["feature"]).unsqueeze(0).to(self.device)  # (1, latent_dim)
+            score_tensor = self.anomaly_score.anomaly_score(feature=feat, center=self.center)
+
+            file_names.append(file_name)
+            y_true.append(anomaly_label)
+            y_scores.append(score_tensor.item())
+
+            enc_list.append(res["encoder"])  # (latent_dim,)
+            feat_list.append(res["feature"])
+            class_labels.append(res["class_label"])
+            anomaly_labels.append(res["anomaly_label"])
+
+        # evaluation: UMAP
+        save_dir = self.model_utils.get_save_dir()
+        os.makedirs(f"{save_dir}/umap", exist_ok=True)
+        enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{self.last_epoch}.png"
+        feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{self.last_epoch}.png"
         
-        # [Option] For the distribution method, perform fit_distribution() with normal data in advance and use a "normal data-only loader"
-        """
-        if self.method == "distribution":
-            # eval_loader 내 데이터를 '정상'으로 가정
-            # 실제론 normal_loader를 별도로 구성하는 편이 바람직
-            source_normal, target_normal = self._collect_normal_embeddings(model_init, eval_loader)
-            self.anomaly_detector.fit_distribution(source_normal, target_normal)
-        """
-        # evaluation
-        (ano_dict_init, es_init, et_init, zs_init, zt_init, svdds_init, svddt_init, cls_ys_init, cls_yt_init) = self.test_epoch(test_loader, epoch=0)
-        (ano_dict_final, es_final, et_final, zs_final, zt_final, svdds_final, svddt_final, cls_ys_final, cls_yt_final) = self.test_epoch(test_loader, epoch=self.last_epoch)
+        enc_np = np.stack(enc_list, axis=0)  # (N, latent_dim)
+        feat_np = np.stack(feat_list, axis=0)
+        class_np = np.array(class_labels)  # (N,)
+        anomaly_np = np.array(anomaly_labels)
 
-        # mlflow metrics log
+        self.umap.plot_umap(
+            save_path=enc_umap_path,
+            features=enc_np,
+            class_labels=class_np,
+            anomaly_labels=anomaly_np,
+            center=self.center,
+            radius=self.radius,
+            boundary_samples=self.umap.boundary_samples
+        )
+        self.umap.plot_umap(
+            save_path=feat_umap_path,
+            features=feat_np,
+            class_labels=class_np,
+            anomaly_labels=anomaly_np,
+            center=self.center,
+            radius=self.radius,
+            boundary_samples=self.umap.boundary_samples
+        )
+
+        # evaluation: AnomalyMetric
+        os.makedirs(f"{save_dir}/metric", exist_ok=True)
+        anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{self.last_epoch}_{self.method}.csv"
+        anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{self.last_epoch}_{self.method}.csv"
+
+        anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
+        anomaly_dict = anomaly_metric.calc_metric()
+        print(f"[Test]  [Epoch {self.last_epoch}/{self.last_epoch}] | Metric: {self.method} | ", anomaly_dict)
+
+        anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
+
+        # save and mlflow artifact upload
         if self.mlflow_logger:
-            self.mlflow_logger.log_metrics({f"init_{k}": v for k, v in ano_dict_init.items() if isinstance(v, (float, int))})
-            self.mlflow_logger.log_metrics({f"final_{k}": v for k, v in ano_dict_final.items() if isinstance(v, (float, int))})
+            self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
+            print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_data_path}")
+            self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
+            print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_metric_path}")
+            self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
+            print(f"[Info] UMAP saved & logged to MLflow: {enc_umap_path}")
+            self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
+            print(f"[Info] UMAP saved & logged to MLflow: {feat_umap_path}")
 
-        self._plot_and_log_bar_chart(ano_dict_init, ano_dict_final)
-
-        plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                              src_embed=es_final, tgt_embed=et_final, src_lbl=cls_ys_final, tgt_lbl=cls_yt_final, 
-                              src_center=None, src_radian=None, 
-                              epoch=self.last_epoch, f_name="test_encoder")
-        plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                              src_embed=zs_final, tgt_embed=zt_final, src_lbl=cls_ys_final, tgt_lbl=cls_yt_final, 
-                              src_center=None, src_radian=None, 
-                              epoch=self.last_epoch, f_name="test_projector")
-        plot_latent_alignment(cfg=self.cfg, mlflow_logger=self.mlflow_logger, 
-                              src_embed=svdds_final, tgt_embed=svddt_final, src_lbl=cls_ys_final, tgt_lbl=cls_yt_final, 
-                              src_center=self.final_center, src_radian=self.final_radius, 
-                              epoch=self.last_epoch, f_name="test_svdd")
-
-        if self.mlflow_logger:
             self.mlflow_logger.end_run()
-
+"""
     def _plot_and_log_bar_chart(self, metrics_init: dict, metrics_final: dict):
         metric_keys = ["accuracy", "precision", "recall", "f1", "auc"]
         init_vals = [metrics_init.get(k, 0.0) for k in metric_keys]
@@ -204,21 +233,4 @@ class ConvergentSimEvaluator:
         if self.mlflow_logger is not None:
             self.mlflow_logger.log_artifact(fig_path, artifact_path="metrics")
             print(f"Bar chart saved & logged to MLflow: {fig_path}")
-
-    def save_anomaly_scores_as_csv(self, epoch: int, anomaly_labels: torch.Tensor, anomaly_scores, y_pred_opt) -> None:
-        save_dir = self.model_utils.get_save_dir()
-        os.makedirs(f"{save_dir}/metric", exist_ok=True)
-        csv_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}.csv"
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["index", "anomaly_label", "score", "pred_label"])
-
-            for i, score in enumerate(anomaly_scores):
-                a_label = anomaly_labels[i].item()
-                pred = int(y_pred_opt[i])
-                writer.writerow([i, a_label, float(score), pred])
-        # mlflow artifact upload
-        if self.mlflow_logger:
-            self.mlflow_logger.log_artifact(csv_path, artifact_path="metrics")
-            print(f"[save_anomaly_scores_as_csv] CSV saved & logged to MLflow: {csv_path}")
+"""

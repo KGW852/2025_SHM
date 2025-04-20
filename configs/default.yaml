@@ -12,7 +12,7 @@ model:
   trainer_fn: ConvergentSimTrainer
   evaluator: convergent_sim_evaluator.py
   evaluator_fn: ConvergentSimEvaluator
-  version: 1.0
+  version: 1.1
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -32,7 +32,7 @@ save_every: 1
 
 optimizer:
   type: adam
-  learning_rate: 1e-4
+  learning_rate: 1e-3
   weight_decay: 1e-4
   momentum: 0.9
 
@@ -65,12 +65,13 @@ ae:
 # mlp parameters
 mlp:
   in_dim: 1024
-  in_hidden_dims: [512, 256]
+  in_hidden_dims: [512, 256, 128]
   latent_dim: 128
   out_hidden_dims: [128, 256, 512]
   out_channels: 2
   out_seq_len: 512
   dropout: 0.1
+  use_batch_norm: True
 
 # tcn parameters
 tcn:
@@ -94,7 +95,11 @@ sim:
 
 # deepSVDD parameters
 svdd:
-  latent_dim: 64
+  in_dim: 64
+  hidden_dims: [32, 16, 8]
+  latent_dim: 8
+  dropout: 0.1
+  use_batch_norm: True
   nu: 0.1
   reduction: mean  # mean, sum
 
@@ -105,9 +110,10 @@ umap:
   n_components: 2
   random_state: 
   metric: euclidean
+  boundary_samples: 100
 
 # anomaly score metric
 anomaly:
-  method: simsiam  # simsiam, distance, distribution
-  return_thresholded_preds: True
+  method: distance  # simsiam, distance, distribution
+  thresholded: 
   distribution_percentile: 99
