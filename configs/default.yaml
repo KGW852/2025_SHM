@@ -1,0 +1,121 @@
+# configs/default.yaml
+
+# experiment set
+exp_name: exp1  # all, exp1, exp2...
+seed: 42
+
+# path
+model:
+  data_name: esc50
+  model_name: convergent_ae
+  trainer: convergent_ae_trainer.py
+  trainer_fn: ConvergentAETrainer
+  evaluator: convergent_ae_evaluator.py
+  evaluator_fn: ConvergentAEEvaluator
+  version: 1.2
+  suffix: .pth
+  base_dir: ./logs  # save model base dir
+
+# data parameters
+match_strategy: sequential  # random, sequential
+train_n_samples: -1  # -1: all
+eval_n_samples: -1
+test_n_samples: 100
+batch_size: 32
+n_workers: 8
+
+# train parameters
+device: cuda
+epochs: 1
+log_every: 1
+save_every: 1
+
+optimizer:
+  type: adam
+  learning_rate: 5e-3
+  weight_decay: 1e-4
+  momentum: 0.9
+
+scheduler:  # steplr, multisteplr, exponentiallr, cosineannealinglr
+  type: steplr
+  step_size: 5
+  gamma: 0.1
+  milestones: [30, 88]
+  t_max: 50
+  eta_min: 0
+
+early_stopper:
+  use: False
+  patience: 3
+  mode: min  # min, max
+  min_delta: 0.0
+  baseline: 0.1  # None, float
+
+# mlflow parameters
+mlflow:
+  use: True
+  tracking_uri: file:./logs/mlruns  # using "file:" save mlruns to local dir
+
+# ae parameters
+ae:
+  recon_type: mae
+  reduction: mean
+  simsiam_lamda: 1.0
+  svdd_lambda: 1.0
+
+# mlp parameters
+mlp:
+  in_dim: 1024
+  enc_hidden_dims: [512, 256, 128, 64]
+  enc_latent_dim: 64
+  dec_latent_dim: 16
+  dec_hidden_dims: [32, 64, 128, 256, 512, 1024]
+  out_channels: 2
+  out_seq_len: 512
+  dropout: 0.1
+  use_batch_norm: True
+
+# tcn parameters
+tcn:
+  in_channels: 2
+  n_layers: 3
+  filters_base: 4
+  filters_factor: 2
+  kernel_size: 3
+  stride: 2
+  dilation_base: 2
+  use_batch_norm: False
+  dropout: 0.0
+
+# simsiam parameters
+sim:
+  in_dim: 64
+  proj_hidden_dim: 32
+  proj_out_dim: 32
+  pred_hidden_dim: 16
+  pred_out_dim: 32
+
+# deepSVDD parameters
+svdd:
+  in_dim: 32
+  hidden_dims: [16]
+  latent_dim: 16
+  dropout: 0.1
+  use_batch_norm: True
+  nu: 0.1
+  reduction: mean  # mean, sum
+
+# umap parameters
+umap:
+  n_neighbors: 15
+  min_dist: 0.0
+  n_components: 2
+  random_state: 42
+  metric: euclidean
+  boundary_samples: 100
+
+# anomaly score metric
+anomaly:
+  method: distance  # simsiam, distance, distribution
+  thresholded: 
+  distribution_percentile: 99

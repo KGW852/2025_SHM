@@ -1,0 +1,22 @@
+# models/modules/recon_loss.py
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class ReconLoss(nn.Module):
+    def __init__(self, loss_type: str = 'mse', reduction: str = 'mean'):
+        super(ReconLoss, self).__init__()
+        assert loss_type in ['mse', 'mae'], "loss_type should be either 'mse' or 'mae'"
+        
+        self.loss_type = loss_type
+        self.reduction = reduction
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if self.loss_type == 'mse':
+            loss = F.mse_loss(pred, target, reduction=self.reduction)
+        else:  # self.loss_type == 'mae'
+            loss = F.l1_loss(pred, target, reduction=self.reduction)
+        
+        return loss
