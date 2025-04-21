@@ -7,3 +7,6 @@ Kyoto-2016_AnoShift.tar
 
 # Ignore .pth files in the logs/ folder
 logs/
+
+# Ignore __pycache__
+__pycache__
