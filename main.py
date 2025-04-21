@@ -1,15 +1,15 @@
 # main.py
 
 import argparse
-import types
 import random
 import numpy as np
 import torch
+import importlib
 
 from configs.config import Config
 from dataloaders.data_loader import get_train_loader, get_eval_loader, get_test_loader
-from trainers.convergent_sim_trainer import ConvergentSimTrainer
-from evaluation.convergent_sim_evaluator import ConvergentSimEvaluator
+#from trainers.convergent_sim_trainer import ConvergentSimTrainer
+#from evaluation.convergent_sim_evaluator import ConvergentSimEvaluator
 from utils.logger import MLFlowLogger
 
 
@@ -52,18 +52,27 @@ def run_experiment(exp_name: str):
     else:
         mlflow_logger = None
 
-    # trainer
+    # device
     device_str = cfg.get("device", "cuda")
     device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
 
-    trainer = ConvergentSimTrainer(cfg, mlflow_logger, device=device)
+    # dynamic trainer
+    trainer_module_name = cfg["model"]["trainer"].replace(".py", "")  # e.g. 'convergent_sim_trainer'
+    trainer_module = importlib.import_module(f"trainers.{trainer_module_name}")
+    TrainerClass = getattr(trainer_module, cfg["model"]["trainer_fn"])  # e.g. ConvergentSimTrainer
+
+    trainer = TrainerClass(cfg, mlflow_logger, device=device)
     train_loader = get_train_loader(cfg)
     eval_loader = get_eval_loader(cfg)
     
     run_id, last_saved_epoch, final_center, final_radius = trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
 
-    # evaluator
-    evaluator = ConvergentSimEvaluator(cfg, mlflow_logger, run_id=run_id, last_epoch=last_saved_epoch, device=device, final_center=final_center, final_radius=final_radius)
+    # dynamic evaluator
+    evaluator_module_name = cfg["model"]["evaluator"].replace(".py", "")
+    evaluator_module = importlib.import_module(f"evaluation.{evaluator_module_name}")
+    EvaluatorClass = getattr(evaluator_module, cfg["model"]["evaluator_fn"])
+    
+    evaluator = EvaluatorClass(cfg, mlflow_logger, run_id=run_id, last_epoch=last_saved_epoch, device=device, final_center=final_center, final_radius=final_radius)
     test_loader = get_test_loader(cfg)
 
     evaluator.run(eval_loader=eval_loader, test_loader=test_loader)

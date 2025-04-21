@@ -95,10 +95,10 @@ class ConvergentAE(nn.Module):
         x_t_recon = self.decoder(feat_t)
 
         return (
-            x_s_recon, x_t_recon,
             e_s, e_t,        # encoder outputs
             z_s, p_s,        # simsiam outputs (source)
             z_t, p_t,        # simsiam outputs (target)
             feat_s, feat_t,  # svdd feature (from z_s, z_t)
-            dist_s, dist_t   # distance to svdd center
+            dist_s, dist_t,   # distance to svdd center
+            x_s_recon, x_t_recon
         )
