@@ -12,7 +12,7 @@ model:
   trainer_fn: ConvergentAETrainer
   evaluator: convergent_ae_evaluator.py
   evaluator_fn: ConvergentAEEvaluator
-  version: 1.2
+  version: 2.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -112,6 +112,12 @@ umap:
   n_components: 2
   random_state: 42
   metric: euclidean
+  boundary_samples: 100
+
+# pca parameters
+pca:
+  n_components: 2
+  random_state: 42
   boundary_samples: 100
 
 # anomaly score metric
