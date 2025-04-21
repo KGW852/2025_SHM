@@ -12,13 +12,15 @@ from typing import Optional
 class PCAPlot:
     """
     Simple PCA dimensionality reduction and plotting for embeddings.
-    Args:
-        n_components: Dimensionality of reduced embedding (2 for 2D plot, etc.).
-        random_state: Seed for random number generator (for PCA, if using randomized solver)
-        **pca_kwargs: Additional keyword arguments for sklearn.decomposition.PCA.
-        boundary_samples: Number of points to sample on the surface of a high-dimensional hypersphere (for plotting SVDD boundary).
     """
     def __init__(self, cfg, **pca_kwargs):
+        """
+        Args:
+            n_components: Dimensionality of reduced embedding (2 for 2D plot, etc.).
+            random_state: Seed for random number generator (for PCA, if using randomized solver)
+            **pca_kwargs: Additional keyword arguments for sklearn.decomposition.PCA.
+            boundary_samples: Number of points to sample on the surface of a high-dimensional hypersphere (for plotting SVDD boundary).
+        """
         pca_params = cfg.get("pca", {})
         self.n_components = pca_params.get("n_components", 2)
         self.random_state = pca_params.get("random_state", 42)
@@ -33,19 +35,10 @@ class PCAPlot:
 
         self.reducer = None  # will hold fitted PCA model
 
-    def plot_pca(
-        self,
-        save_path: str,
-        features: np.ndarray,
-        class_labels: np.ndarray,
-        anomaly_labels: np.ndarray,
-        center: Optional[torch.Tensor] = None,
-        radius: Optional[float] = None,
-        boundary_samples: Optional[int] = None
-    ):
+    def plot_pca(self, save_path: str, features: np.ndarray, class_labels: np.ndarray, anomaly_labels: np.ndarray, 
+                 center: Optional[torch.Tensor] = None, radius: Optional[float] = None, boundary_samples: Optional[int] = None):
         """
         Perform PCA dimensionality reduction and 2D scatter plot of embeddings.
-        
         Args:
             save_path: Path to save the PCA plot (e.g., "results/pca_plot.png").
             features: (N, D) feature matrix to reduce and plot.
