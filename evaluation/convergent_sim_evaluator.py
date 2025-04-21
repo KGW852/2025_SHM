@@ -167,9 +167,9 @@ class ConvergentSimEvaluator:
             features=enc_np,
             class_labels=class_np,
             anomaly_labels=anomaly_np,
-            center=self.center,
-            radius=self.radius,
-            boundary_samples=self.umap.boundary_samples
+            center=None,
+            radius=None,
+            boundary_samples=None
         )
         self.umap.plot_umap(
             save_path=feat_umap_path,

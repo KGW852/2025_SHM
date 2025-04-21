@@ -180,7 +180,7 @@ class ConvergentAETrainer:
             # mlflow log: global step
             if self.mlflow_logger is not None and batch_idx % 40 == 0:
                 global_step = epoch * len(train_loader) + batch_idx
-                self.mlflow_logger.log_metrics({"train_loss_step": loss.item(),"train_recon_step": recon_loss.item(), 
+                self.mlflow_logger.log_metrics({"train_loss_step": loss.item(), "train_recon_step": recon_loss.item(), 
                                                 "train_simsiam_step": sim_loss.item(), "train_svdd_step": svdd_loss.item(), }, step=global_step)
                 
             # tqdm
@@ -246,10 +246,13 @@ class ConvergentAETrainer:
     def eval_epoch(self, eval_loader, epoch: int):
         self.model.eval()
         total_loss = 0.0
+        recons_loss = 0.0
         simsiam_loss = 0.0
         deep_svdd_loss = 0.0
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
+        recons_loss_s = 0.0
+        recons_loss_t = 0.0
 
         sum_dist_s = 0.0
         sum_dist_t = 0.0
@@ -266,7 +269,7 @@ class ConvergentAETrainer:
                 y_t = y_t.to(self.device)
 
                 # forward
-                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
 
                 # dist_s, dist_t: L2^2 distance (B,)
                 sum_dist_s += dist_s.detach().sum().item()
@@ -278,24 +281,32 @@ class ConvergentAETrainer:
                 svdd_loss_s = self.svdd_criterion(feat_s, self.model.svdd.center, self.model.svdd.radius)
                 svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
                 svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
+                recon_loss_s = self.recon_criterion(x_s_recon, x_s)  # (pred, target)
+                recon_loss_t = self.recon_criterion(x_t_recon, x_t)
+                recon_loss = 0.5 * (recon_loss_s + recon_loss_t)
 
-                loss = self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
+                loss = recon_loss + self.simsiam_lamda * sim_loss + self.svdd_lambda * svdd_loss
 
                 # stats
                 total_loss += loss.item()
+                recons_loss += recon_loss.item()
                 simsiam_loss += sim_loss.item()
                 deep_svdd_loss += svdd_loss.item()
                 deep_svdd_loss_s += svdd_loss_s.item()
                 deep_svdd_loss_t += svdd_loss_t.item()
+                recons_loss_s += recon_loss_s.item()
+                recons_loss_t += recon_loss_t.item()
 
                 # mlflow log: global step
                 if self.mlflow_logger is not None and batch_idx % 2 == 0:
                     global_step = epoch * len(eval_loader) + batch_idx
-                    self.mlflow_logger.log_metrics({"eval_loss_step": loss.item(), "eval_simsiam_step": sim_loss.item(), "eval_svdd_step": svdd_loss.item(), }, step=global_step)
-                    
+                    self.mlflow_logger.log_metrics({"eval_loss_step": loss.item(), "eval_recon_step": recon_loss.item(), 
+                                                    "eval_simsiam_step": sim_loss.item(), "eval_svdd_step": svdd_loss.item(), }, step=global_step)
+                
                 # tqdm
                 pbar.set_postfix({
                     "loss": f"{loss.item():.4f}",
+                    "recon": f"{recon_loss.item():.4f}",
                     "simsiam": f"{sim_loss.item():.4f}",
                     "svdd": f"{svdd_loss.item():.4f}",
                     "svdd_s": f"{svdd_loss_s.item():.4f}",
@@ -312,6 +323,9 @@ class ConvergentAETrainer:
         avg_svdd_loss = deep_svdd_loss / num_batches
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
+        avg_recon_loss = recons_loss / num_batches
+        avg_recon_loss_s = recons_loss_s / num_batches
+        avg_recon_loss_t = recons_loss_t / num_batches
 
         # calc dist_s, dist_t avg
         avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
@@ -321,7 +335,8 @@ class ConvergentAETrainer:
         radius_out = self.model.svdd.radius
 
         print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
-              f"Avg: {avg_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
+              f"Avg: {avg_loss:.4f} | Recon: {avg_recon_loss:.4f} | "
+              f"SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
               f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
               f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
               f"Radius: {radius_out.item():.4f}")
@@ -329,6 +344,9 @@ class ConvergentAETrainer:
         if self.mlflow_logger is not None:
             self.mlflow_logger.log_metrics({
                 "eval_loss": avg_loss,
+                "eval_recon_loss": avg_recon_loss,
+                "eval_recon_loss_s": avg_recon_loss_s,
+                "eval_recon_loss_t": avg_recon_loss_t,
                 "eval_simsiam_loss": avg_sim_loss,
                 "eval_svdd_loss": avg_svdd_loss,
                 "eval_svdd_loss_s": avg_svdd_loss_s,
@@ -338,7 +356,7 @@ class ConvergentAETrainer:
                 "eval_radius": radius_out.item()
             }, step=epoch)
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
+        return (avg_loss, avg_recon_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
                 avg_dist_s, avg_dist_t, center_out, radius_out.item())
 
     def save_checkpoint(self, epoch: int):
@@ -375,12 +393,14 @@ class ConvergentAETrainer:
 
         for epoch in range(self.epochs + 1):
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
-            (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t, train_center, train_radius) = train_loss_tuple
+            (avg_loss, avg_recon_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
+                avg_dist_s, avg_dist_t, center_out, radius_out) = train_loss_tuple
 
             eval_loss_tuple = None
             if eval_loader is not None and epoch % self.log_every == 0:
                 eval_loss_tuple = self.eval_epoch(eval_loader, epoch)  # eval
-                (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_dist_s, eval_dist_t, eval_center, eval_radius) = eval_loss_tuple
+                (avg_loss, avg_recon_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, 
+                avg_dist_s, avg_dist_t, center_out, radius_out) = eval_loss_tuple
 
             if eval_loss_tuple is not None and self.early_stopper is not None:  # early stopping check(use val loss)
                 if self.early_stopper.step(eval_loss_tuple[0]):
