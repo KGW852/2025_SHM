@@ -1,8 +1,12 @@
 # utils/logger.py
 
+import os
+import json
+
 import mlflow
 from datetime import datetime
 from typing import Dict, Optional
+
 
 class MLFlowLogger:
     """
@@ -129,5 +133,33 @@ class MLFlowLogger:
             source=model_uri,
             run_id=self.run_id
         )
-
         print(f"[INFO] Model '{model_name}' registered with run ID: {self.run_id}")
+
+    def save_run_id(self, file_path: str):
+        """
+        Save the current run_id and experiment_id to a JSON file.
+        """
+        if self.run_id is None:
+            raise RuntimeError("No run_id to save. Make sure you've called start_run() or resume_run().")
+
+        data = {
+            "run_id": self.run_id,
+            "experiment_id": self.experiment_id,
+            "experiment_name": self.experiment_name
+        }
+        with open(file_path, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"[INFO] run_id saved to {file_path}")
+
+    @staticmethod
+    def load_run_id(file_path: str):
+        """
+        Load a saved run_id and experiment info from JSON file.
+        """
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        run_id = data.get("run_id")
+        exp_id = data.get("experiment_id")
+        exp_name = data.get("experiment_name")
+        print(f"[INFO] run_id loaded from {file_path}")
+        return run_id, exp_id, exp_name

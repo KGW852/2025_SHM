@@ -13,7 +13,9 @@ from utils.logger import MLFlowLogger
 from utils.datalist_utils import remove_duplicates
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
 from evaluation.modules.umap import UMAPPlot
+from evaluation.modules.pca import PCAPlot
 
+# run_id, last_epoch, center, radius인자 제거.
 class ConvergentSimEvaluator:
     """
     SimSiam Domain Adaptation evaluator
@@ -24,11 +26,9 @@ class ConvergentSimEvaluator:
         last_epoch (int): Final epoch to be used for evaluation
         device (torch.device): cuda or cpu
     """
-    def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, run_id: str, last_epoch: int, device: torch.device = None, final_center=None, final_radius=None):
+    def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, device: torch.device = None):
         self.cfg = cfg
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.center = final_center
-        self.radius = final_radius
 
         # model
         self.encoder = ConvergentSim(
@@ -51,13 +51,22 @@ class ConvergentSimEvaluator:
         # utils: model manage, mlflow
         self.model_utils = ModelUtils(self.cfg)
         self.mlflow_logger = mlflow_logger
-        self.run_id = run_id
-        self.last_epoch = last_epoch
 
-        # params
+        # run_name: model_name
+        self.run_name = self.model_utils.get_model_name()
+
+        # metrics modules
         self.anomaly_score = AnomalyScore(self.cfg)
         self.umap = UMAPPlot(self.cfg)
+        self.pca = PCAPlot(self.cfg)
         self.method = cfg["anomaly"]["method"]
+
+        # center, radius
+        self.center = None
+        self.radius = None
+
+    def load_checkpoint(self, epoch: int):
+        
 
     def test_epoch(self, data_loader, epoch):
         ckpt_file = self.model_utils.get_file_name(epoch)
@@ -71,7 +80,7 @@ class ConvergentSimEvaluator:
 
         src_results, tgt_results = [], []
 
-        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"[Test]  [Epoch {epoch}/{self.last_epoch}] | Metric: {self.method}", leave=False)
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"[Test]  [Epoch {epoch}] | Metric: {self.method}", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
                 (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path) = data  # src_label, tgt_label: tensor([class_label, anomaly_label])

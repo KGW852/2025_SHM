@@ -15,7 +15,7 @@ class Config:
     @classmethod
     def exp1(cls):
         cfg = parse_config()
-        cfg["model"]["version"] = 2.0
+        cfg["model"]["version"] = 1.0
         return cls(config_dict=cfg)
 
     @classmethod

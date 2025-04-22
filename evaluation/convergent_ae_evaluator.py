@@ -13,6 +13,7 @@ from utils.logger import MLFlowLogger
 from utils.datalist_utils import remove_duplicates
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
 from evaluation.modules.umap import UMAPPlot
+from evaluation.modules.pca import PCAPlot
 
 class ConvergentAEEvaluator:
     """
@@ -64,6 +65,7 @@ class ConvergentAEEvaluator:
         self.anomaly_score = AnomalyScore(self.cfg)
         self.umap = UMAPPlot(self.cfg)
         self.method = cfg["anomaly"]["method"]
+        self.pca = PCAPlot(self.cfg)
 
     def test_epoch(self, data_loader, epoch):
         ckpt_file = self.model_utils.get_file_name(epoch)
@@ -97,24 +99,24 @@ class ConvergentAEEvaluator:
                     # results
                     src_results.append({
                         "file_name"     : src_path[i],
-                        "x_s"           : x_s[i].cpu().numpy(),
+                        "x"           : x_s[i].cpu().numpy(),
                         "encoder"       : e_s[i].cpu().numpy(),
                         "projector"     : z_s[i].cpu().numpy(),
                         "feature"       : feat_s[i].cpu().numpy(),
                         "distance"      : dist_s[i].cpu().numpy(),
-                        "x_s_recon"     : x_s_recon[i].cpu().numpy(),
+                        "x_recon"     : x_s_recon[i].cpu().numpy(),
                         "class_label"   : class_label_src,
                         "anomaly_label" : anomaly_label_src,
                         "domain"        : "src"
                     })
                     tgt_results.append({
                         "file_name"     : tgt_path[i],
-                        "x_t"           : x_t[i].cpu().numpy(),
+                        "x"           : x_t[i].cpu().numpy(),
                         "encoder"       : e_t[i].cpu().numpy(),
                         "projector"     : z_t[i].cpu().numpy(),
                         "feature"       : feat_t[i].cpu().numpy(),
                         "distance"      : dist_t[i].cpu().numpy(),
-                        "x_t_recon"     : x_t_recon[i].cpu().numpy(),
+                        "x_recon"     : x_t_recon[i].cpu().numpy(),
                         "class_label"   : class_label_tgt,
                         "anomaly_label" : anomaly_label_tgt,
                         "domain"        : "tgt"
@@ -161,11 +163,14 @@ class ConvergentAEEvaluator:
             class_labels.append(res["class_label"])
             anomaly_labels.append(res["anomaly_label"])
 
-        # evaluation: UMAP
+        # evaluation: UMAP, PCA
         save_dir = self.model_utils.get_save_dir()
         os.makedirs(f"{save_dir}/umap", exist_ok=True)
         enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{self.last_epoch}.png"
         feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{self.last_epoch}.png"
+
+        os.makedirs(f"{save_dir}/pca", exist_ok=True)
+        feat_pca_path = f"{save_dir}/pca/pca_feature_epoch{self.last_epoch}.png"
         
         enc_np = np.stack(enc_list, axis=0)  # (N, latent_dim)
         feat_np = np.stack(feat_list, axis=0)
@@ -177,9 +182,9 @@ class ConvergentAEEvaluator:
             features=enc_np,
             class_labels=class_np,
             anomaly_labels=anomaly_np,
-            center=self.center,
-            radius=self.radius,
-            boundary_samples=self.umap.boundary_samples
+            center=None,
+            radius=None,
+            boundary_samples=None
         )
         self.umap.plot_umap(
             save_path=feat_umap_path,
@@ -189,6 +194,15 @@ class ConvergentAEEvaluator:
             center=self.center,
             radius=self.radius,
             boundary_samples=self.umap.boundary_samples
+        )
+        self.pca.plot_pca(
+            save_path=feat_pca_path,
+            features=feat_np,
+            class_labels=class_np,
+            anomaly_labels=anomaly_np,
+            center=self.center,
+            radius=self.radius,
+            boundary_samples=self.pca.boundary_samples
         )
 
         # evaluation: AnomalyMetric
@@ -212,6 +226,8 @@ class ConvergentAEEvaluator:
             print(f"[Info] UMAP saved & logged to MLflow: {enc_umap_path}")
             self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
             print(f"[Info] UMAP saved & logged to MLflow: {feat_umap_path}")
+            self.mlflow_logger.log_artifact(feat_pca_path, artifact_path="pca")
+            print(f"[Info] PCA saved & logged to MLflow: {feat_pca_path}")
 
             self.mlflow_logger.end_run()
 """

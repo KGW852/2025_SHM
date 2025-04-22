@@ -213,7 +213,7 @@ class ConvergentSimTrainer:
                 "train_radius": radius_out.item()
             }, step=epoch)
             
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t)
 
     def eval_epoch(self, eval_loader, epoch: int):
         self.encoder.eval()
@@ -306,11 +306,10 @@ class ConvergentSimTrainer:
                 "eval_svdd_loss_s": avg_svdd_loss_s,
                 "eval_svdd_loss_t": avg_svdd_loss_t,
                 "eval_mean_dist_s": avg_dist_s,
-                "eval_mean_dist_t": avg_dist_t,
-                "eval_radius": radius_out.item()
+                "eval_mean_dist_t": avg_dist_t
             }, step=epoch)
 
-        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t, center_out, radius_out.item())
+        return (avg_loss, avg_sim_loss, avg_svdd_loss, avg_svdd_loss_s, avg_svdd_loss_t, avg_dist_s, avg_dist_t)
 
     def save_checkpoint(self, epoch: int):
         file_name = self.model_utils.get_file_name(epoch)
@@ -346,12 +345,12 @@ class ConvergentSimTrainer:
 
         for epoch in range(self.epochs + 1):
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
-            (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t, train_center, train_radius) = train_loss_tuple
+            (train_avg, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t) = train_loss_tuple
 
             eval_loss_tuple = None
             if eval_loader is not None and epoch % self.log_every == 0:
                 eval_loss_tuple = self.eval_epoch(eval_loader, epoch)  # eval
-                (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_dist_s, eval_dist_t, eval_center, eval_radius) = eval_loss_tuple
+                (eval_avg, eval_sim, eval_svdd, eval_svdd_s, eval_svdd_t, eval_dist_s, eval_dist_t) = eval_loss_tuple
 
             if eval_loss_tuple is not None and self.early_stopper is not None:  # early stopping check(use val loss)
                 if self.early_stopper.step(eval_loss_tuple[0]):
@@ -364,21 +363,18 @@ class ConvergentSimTrainer:
             if (epoch % self.save_every) == 0:
                 self.save_checkpoint(epoch)
                 last_saved_epoch = epoch
-        
-        # center, radius
-        final_center = self.encoder.svdd.center  # tensor: [latent_dim]
-        final_radius = self.encoder.svdd.radius  # param, float: [1]
 
         # MLflow Registry final model and return run_id, last_saved_epoch
-        """
-        if self.mlflow_logger is not None and last_saved_epoch is not None:
+        if self.mlflow_logger is not None:
+            self.mlflow_logger.log_metrics({"last_epoch": last_saved_epoch})
+            """
             final_ckpt_path = self.model_utils.get_file_path(self.model_utils.get_file_name(last_saved_epoch))
             self.mlflow_logger.register_model(model_path=final_ckpt_path, model_name=self.run_name)
-        """
-        run_id = self.mlflow_logger.run_id if self.mlflow_logger is not None else None
-        return run_id, last_saved_epoch, final_center, final_radius
-            
-        """
-        if self.mlflow_logger is not None:
+            """
+            run_id = self.mlflow_logger.run_id if self.mlflow_logger is not None else None
+            run_id_path = self.model_utils.get_file_path(f"{self.run_name}.json")
+            self.mlflow_logger.save_run_id(run_id_path)
+
             self.mlflow_logger.end_run()
-        """
+
+# ae trainer 적용 예정: return 제거, run_id 저장, center, radius 반환 제거.(statedict로 모델에 저장되있음.)
