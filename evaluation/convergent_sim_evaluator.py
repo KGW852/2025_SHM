@@ -15,15 +15,13 @@ from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
 from evaluation.modules.umap import UMAPPlot
 from evaluation.modules.pca import PCAPlot
 
-# run_id, last_epoch, center, radius인자 제거.
+
 class ConvergentSimEvaluator:
     """
     SimSiam Domain Adaptation evaluator
     Args:
         cfg (dict): config dictionary
         mlflow_logger (MLFlowLogger): MLflow logger(define param in 'main.py')
-        run_id (str): MLflow run id
-        last_epoch (int): Final epoch to be used for evaluation
         device (torch.device): cuda or cpu
     """
     def __init__(self, cfg: dict, mlflow_logger: MLFlowLogger, device: torch.device = None):
@@ -48,6 +46,10 @@ class ConvergentSimEvaluator:
             svdd_use_batchnorm=cfg["svdd"]["use_batch_norm"]
         ).to(self.device)
 
+        # run param
+        self.eval_run_epoch = cfg["eval"]["epoch"]
+        self.test_run_epoch = cfg["test"]["epoch"]
+
         # utils: model manage, mlflow
         self.model_utils = ModelUtils(self.cfg)
         self.mlflow_logger = mlflow_logger
@@ -66,16 +68,19 @@ class ConvergentSimEvaluator:
         self.radius = None
 
     def load_checkpoint(self, epoch: int):
-        
-
-    def test_epoch(self, data_loader, epoch):
-        ckpt_file = self.model_utils.get_file_name(epoch)
-        ckpt_path = self.model_utils.get_file_path(ckpt_file)
+        file_name = self.model_utils.get_file_name(epoch)
+        ckpt_path = self.model_utils.get_file_path(file_name)
         if not Path(ckpt_path).exists():
             raise FileNotFoundError(f"Cannot find checkpoint file: {ckpt_path}")
-        
+
         checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+
+        self.center = checkpoint["center"] if "center" in checkpoint else None
+        self.radius = checkpoint["radius"] if "radius" in checkpoint else None
+
+    def test_epoch(self, data_loader, epoch):
+        self.load_checkpoint(epoch)
         self.encoder.eval()
 
         src_results, tgt_results = [], []
@@ -127,23 +132,22 @@ class ConvergentSimEvaluator:
 
     def run(self, eval_loader, test_loader):
         """
-        Evaluating MLflow run: Load the 0-epoch model & final_epoch model
+        Evaluating MLflow run: Load the epoch model
         """
-        if self.mlflow_logger is not None and self.run_id is not None:
-            self.mlflow_logger.start_run(self.run_id)
+        if self.mlflow_logger is not None:
+            run_id_path = self.model_utils.get_file_path(f"{self.run_name}.json")
+            run_id, exp_id, exp_name = self.mlflow_logger.load_run_id(run_id_path)
+            self.mlflow_logger.start_run(run_id)
 
+        # run epochs extract
+        
         # evaluation: test_loader
-        test_results = self.test_epoch(test_loader, self.last_epoch)
+        test_results = self.test_epoch(test_loader, epoch)
 
         # evaluation: extract dict
-        file_names = []
-        y_true = []
-        y_scores = []
-
-        enc_list = []
-        feat_list = []
-        class_labels = []
-        anomaly_labels = []
+        file_names, y_true, y_scores = [], [], []
+        enc_list, feat_list = [], []
+        class_labels, anomaly_labels = [], []
 
         for res in test_results:
             file_name = res["file_name"]
@@ -160,11 +164,14 @@ class ConvergentSimEvaluator:
             class_labels.append(res["class_label"])
             anomaly_labels.append(res["anomaly_label"])
 
-        # evaluation: UMAP
+        # evaluation: UMAP, PCA
         save_dir = self.model_utils.get_save_dir()
         os.makedirs(f"{save_dir}/umap", exist_ok=True)
-        enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{self.last_epoch}.png"
-        feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{self.last_epoch}.png"
+        enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
+        feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{epoch}.png"
+
+        os.makedirs(f"{save_dir}/pca", exist_ok=True)
+        feat_pca_path = f"{save_dir}/pca/pca_feature_epoch{epoch}.png"
         
         enc_np = np.stack(enc_list, axis=0)  # (N, latent_dim)
         feat_np = np.stack(feat_list, axis=0)
@@ -189,15 +196,24 @@ class ConvergentSimEvaluator:
             radius=self.radius,
             boundary_samples=self.umap.boundary_samples
         )
+        self.pca.plot_pca(
+            save_path=feat_pca_path,
+            features=feat_np,
+            class_labels=class_np,
+            anomaly_labels=anomaly_np,
+            center=self.center,
+            radius=self.radius,
+            boundary_samples=self.pca.boundary_samples
+        )
 
         # evaluation: AnomalyMetric
         os.makedirs(f"{save_dir}/metric", exist_ok=True)
-        anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{self.last_epoch}_{self.method}.csv"
-        anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{self.last_epoch}_{self.method}.csv"
+        anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}_{self.method}.csv"
+        anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{epoch}_{self.method}.csv"
 
         anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
         anomaly_dict = anomaly_metric.calc_metric()
-        print(f"[Test]  [Epoch {self.last_epoch}/{self.last_epoch}] | Metric: {self.method} | ", anomaly_dict)
+        print(f"[Test]  [Epoch {epoch}] | Metric: {self.method} | ", anomaly_dict)
 
         anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
 
@@ -211,6 +227,8 @@ class ConvergentSimEvaluator:
             print(f"[Info] UMAP saved & logged to MLflow: {enc_umap_path}")
             self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
             print(f"[Info] UMAP saved & logged to MLflow: {feat_umap_path}")
+            self.mlflow_logger.log_artifact(feat_pca_path, artifact_path="pca")
+            print(f"[Info] PCA saved & logged to MLflow: {feat_pca_path}")
 
             self.mlflow_logger.end_run()
 """

@@ -65,7 +65,7 @@ def run_experiment(exp_name: str):
     train_loader = get_train_loader(cfg)
     eval_loader = get_eval_loader(cfg)
     
-    run_id, last_saved_epoch, final_center, final_radius = trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
+    trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
 
     # dynamic evaluator
     evaluator_module_name = cfg["model"]["evaluator"].replace(".py", "")

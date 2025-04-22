@@ -376,5 +376,3 @@ class ConvergentSimTrainer:
             self.mlflow_logger.save_run_id(run_id_path)
 
             self.mlflow_logger.end_run()
-
-# ae trainer 적용 예정: return 제거, run_id 저장, center, radius 반환 제거.(statedict로 모델에 저장되있음.)

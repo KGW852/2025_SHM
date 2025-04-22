@@ -15,7 +15,16 @@ model:
   version: 1.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
-  eval_mode: False
+
+# eval step parameters
+eval:
+  use: False
+  epoch: [0, 2]  # [-1]: all
+
+# test step parameters
+test:
+  use: False
+  epoch: [0, 2]  # [-1]: all
 
 # data parameters
 match_strategy: sequential  # random, sequential
