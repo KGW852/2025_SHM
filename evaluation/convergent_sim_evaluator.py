@@ -140,96 +140,99 @@ class ConvergentSimEvaluator:
             self.mlflow_logger.start_run(run_id)
 
         # run epochs extract
+        test_run_epochs = self.model_utils.get_run_epochs(self.test_run_epoch)
         
         # evaluation: test_loader
-        test_results = self.test_epoch(test_loader, epoch)
+        for epoch in test_run_epochs:
+            test_results = self.test_epoch(test_loader, epoch)
 
-        # evaluation: extract dict
-        file_names, y_true, y_scores = [], [], []
-        enc_list, feat_list = [], []
-        class_labels, anomaly_labels = [], []
+            # evaluation: extract dict
+            file_names, y_true, y_scores = [], [], []
+            enc_list, feat_list = [], []
+            class_labels, anomaly_labels = [], []
 
-        for res in test_results:
-            file_name = res["file_name"]
-            anomaly_label = res["anomaly_label"]
-            feat = torch.tensor(res["feature"]).unsqueeze(0).to(self.device)  # (1, latent_dim)
-            score_tensor = self.anomaly_score.anomaly_score(feature=feat, center=self.center)
+            for res in test_results:
+                file_name = res["file_name"]
+                anomaly_label = res["anomaly_label"]
+                feat = torch.tensor(res["feature"]).unsqueeze(0).to(self.device)  # (1, latent_dim)
+                score_tensor = self.anomaly_score.anomaly_score(feature=feat, center=self.center)
 
-            file_names.append(file_name)
-            y_true.append(anomaly_label)
-            y_scores.append(score_tensor.item())
+                file_names.append(file_name)
+                y_true.append(anomaly_label)
+                y_scores.append(score_tensor.item())
 
-            enc_list.append(res["encoder"])  # (latent_dim,)
-            feat_list.append(res["feature"])
-            class_labels.append(res["class_label"])
-            anomaly_labels.append(res["anomaly_label"])
+                enc_list.append(res["encoder"])  # (latent_dim,)
+                feat_list.append(res["feature"])
+                class_labels.append(res["class_label"])
+                anomaly_labels.append(res["anomaly_label"])
 
-        # evaluation: UMAP, PCA
-        save_dir = self.model_utils.get_save_dir()
-        os.makedirs(f"{save_dir}/umap", exist_ok=True)
-        enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
-        feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{epoch}.png"
+            # evaluation: UMAP, PCA
+            save_dir = self.model_utils.get_save_dir()
+            os.makedirs(f"{save_dir}/umap", exist_ok=True)
+            enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
+            feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{epoch}.png"
 
-        os.makedirs(f"{save_dir}/pca", exist_ok=True)
-        feat_pca_path = f"{save_dir}/pca/pca_feature_epoch{epoch}.png"
-        
-        enc_np = np.stack(enc_list, axis=0)  # (N, latent_dim)
-        feat_np = np.stack(feat_list, axis=0)
-        class_np = np.array(class_labels)  # (N,)
-        anomaly_np = np.array(anomaly_labels)
+            os.makedirs(f"{save_dir}/pca", exist_ok=True)
+            feat_pca_path = f"{save_dir}/pca/pca_feature_epoch{epoch}.png"
+            
+            enc_np = np.stack(enc_list, axis=0)  # (N, latent_dim)
+            feat_np = np.stack(feat_list, axis=0)
+            class_np = np.array(class_labels)  # (N,)
+            anomaly_np = np.array(anomaly_labels)
 
-        self.umap.plot_umap(
-            save_path=enc_umap_path,
-            features=enc_np,
-            class_labels=class_np,
-            anomaly_labels=anomaly_np,
-            center=None,
-            radius=None,
-            boundary_samples=None
-        )
-        self.umap.plot_umap(
-            save_path=feat_umap_path,
-            features=feat_np,
-            class_labels=class_np,
-            anomaly_labels=anomaly_np,
-            center=self.center,
-            radius=self.radius,
-            boundary_samples=self.umap.boundary_samples
-        )
-        self.pca.plot_pca(
-            save_path=feat_pca_path,
-            features=feat_np,
-            class_labels=class_np,
-            anomaly_labels=anomaly_np,
-            center=self.center,
-            radius=self.radius,
-            boundary_samples=self.pca.boundary_samples
-        )
+            self.umap.plot_umap(
+                save_path=enc_umap_path,
+                features=enc_np,
+                class_labels=class_np,
+                anomaly_labels=anomaly_np,
+                center=None,
+                radius=None,
+                boundary_samples=None
+            )
+            self.umap.plot_umap(
+                save_path=feat_umap_path,
+                features=feat_np,
+                class_labels=class_np,
+                anomaly_labels=anomaly_np,
+                center=self.center,
+                radius=self.radius,
+                boundary_samples=self.umap.boundary_samples
+            )
+            self.pca.plot_pca(
+                save_path=feat_pca_path,
+                features=feat_np,
+                class_labels=class_np,
+                anomaly_labels=anomaly_np,
+                center=self.center,
+                radius=self.radius,
+                boundary_samples=self.pca.boundary_samples
+            )
 
-        # evaluation: AnomalyMetric
-        os.makedirs(f"{save_dir}/metric", exist_ok=True)
-        anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}_{self.method}.csv"
-        anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{epoch}_{self.method}.csv"
+            # evaluation: AnomalyMetric
+            os.makedirs(f"{save_dir}/metric", exist_ok=True)
+            anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}_{self.method}.csv"
+            anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{epoch}_{self.method}.csv"
 
-        anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
-        anomaly_dict = anomaly_metric.calc_metric()
-        print(f"[Test]  [Epoch {epoch}] | Metric: {self.method} | ", anomaly_dict)
+            anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
+            anomaly_dict = anomaly_metric.calc_metric()
+            print(f"[Test]  [Epoch {epoch}] | Metric: {self.method} | ", anomaly_dict)
 
-        anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
+            anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
 
-        # save and mlflow artifact upload
+            # save and mlflow artifact upload
+            if self.mlflow_logger:
+                self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
+                print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_data_path}")
+                self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
+                print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_metric_path}")
+                self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
+                print(f"[Info] UMAP saved & logged to MLflow: {enc_umap_path}")
+                self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
+                print(f"[Info] UMAP saved & logged to MLflow: {feat_umap_path}")
+                self.mlflow_logger.log_artifact(feat_pca_path, artifact_path="pca")
+                print(f"[Info] PCA saved & logged to MLflow: {feat_pca_path}")
+
         if self.mlflow_logger:
-            self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
-            print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_data_path}")
-            self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
-            print(f"[Info] AnomalyMetrics saved & logged to MLflow: {anomaly_metric_path}")
-            self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
-            print(f"[Info] UMAP saved & logged to MLflow: {enc_umap_path}")
-            self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
-            print(f"[Info] UMAP saved & logged to MLflow: {feat_umap_path}")
-            self.mlflow_logger.log_artifact(feat_pca_path, artifact_path="pca")
-            print(f"[Info] PCA saved & logged to MLflow: {feat_pca_path}")
-
             self.mlflow_logger.end_run()
 """
     def _plot_and_log_bar_chart(self, metrics_init: dict, metrics_final: dict):

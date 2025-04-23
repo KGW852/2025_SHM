@@ -16,14 +16,16 @@ model:
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
-# eval step parameters
+# trainer step parameters
+train:
+  use: False
+
+# evaluator step parameters
 eval:
   use: False
   epoch: [0, 2]  # [-1]: all
-
-# test step parameters
 test:
-  use: False
+  use: True
   epoch: [0, 2]  # [-1]: all
 
 # data parameters
@@ -36,7 +38,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 10
+epochs: 0
 log_every: 1
 save_every: 1
 

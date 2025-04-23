@@ -56,26 +56,36 @@ def run_experiment(exp_name: str):
     device_str = cfg.get("device", "cuda")
     device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
 
-    # dynamic trainer
-    trainer_module_name = cfg["model"]["trainer"].replace(".py", "")  # e.g. 'convergent_sim_trainer'
-    trainer_module = importlib.import_module(f"trainers.{trainer_module_name}")
-    TrainerClass = getattr(trainer_module, cfg["model"]["trainer_fn"])  # e.g. ConvergentSimTrainer
-
-    trainer = TrainerClass(cfg, mlflow_logger, device=device)
+    # dataloader
     train_loader = get_train_loader(cfg)
     eval_loader = get_eval_loader(cfg)
-    
-    trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
-
-    # dynamic evaluator
-    evaluator_module_name = cfg["model"]["evaluator"].replace(".py", "")
-    evaluator_module = importlib.import_module(f"evaluation.{evaluator_module_name}")
-    EvaluatorClass = getattr(evaluator_module, cfg["model"]["evaluator_fn"])
-    
-    evaluator = EvaluatorClass(cfg, mlflow_logger, run_id=run_id, last_epoch=last_saved_epoch, device=device, final_center=final_center, final_radius=final_radius)
     test_loader = get_test_loader(cfg)
 
-    evaluator.run(eval_loader=eval_loader, test_loader=test_loader)
+    # dynamic trainer
+    if cfg["train"].get("use", False):
+        print("[INFO] Training step is activated.")
+        trainer_module_name = cfg["model"]["trainer"].replace(".py", "")  # e.g. 'convergent_sim_trainer'
+        trainer_module = importlib.import_module(f"trainers.{trainer_module_name}")
+        TrainerClass = getattr(trainer_module, cfg["model"]["trainer_fn"])  # e.g. ConvergentSimTrainer
+
+        trainer = TrainerClass(cfg, mlflow_logger, device=device)
+        
+        trainer.run(train_loader=train_loader, eval_loader=eval_loader, log_params_dict=cfg)
+    else:
+        print("[INFO] Skipping training step...")
+
+    # dynamic evaluator
+    if cfg["test"].get("use", False):
+        print("[INFO] Test step is activated.")
+        evaluator_module_name = cfg["model"]["evaluator"].replace(".py", "")
+        evaluator_module = importlib.import_module(f"evaluation.{evaluator_module_name}")
+        EvaluatorClass = getattr(evaluator_module, cfg["model"]["evaluator_fn"])
+        
+        evaluator = EvaluatorClass(cfg, mlflow_logger, device=device)
+
+        evaluator.run(eval_loader=eval_loader, test_loader=test_loader)
+    else:
+        print("[INFO] Skipping test step...")
 
 
 def main():
