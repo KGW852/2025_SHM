@@ -7,26 +7,26 @@ seed: 42
 # path
 model:
   data_name: esc50
-  model_name: convergent_sim
-  trainer: convergent_sim_trainer.py
-  trainer_fn: ConvergentSimTrainer
-  evaluator: convergent_sim_evaluator.py
-  evaluator_fn: ConvergentSimEvaluator
+  model_name: convergent_ae
+  trainer: convergent_ae_trainer.py
+  trainer_fn: ConvergentAETrainer
+  evaluator: convergent_ae_evaluator.py
+  evaluator_fn: ConvergentAEEvaluator
   version: 1.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
-eval:
+eval:  # not used
   use: False
   epoch: [0, 2]  # [-1]: all
 test:
   use: True
-  epoch: [0, 2]  # [-1]: all
+  epoch: [-1]  # [-1]: all
 
 # data parameters
 match_strategy: sequential  # random, sequential
@@ -38,7 +38,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 0
+epochs: 1
 log_every: 1
 save_every: 1
 
@@ -135,6 +135,6 @@ pca:
 # anomaly score metric
 anomaly:
   method: distance  # simsiam, distance, distribution, reconloss
-  reconloss_type: mse
+  recon_type: mse
   thresholded: 
   distribution_percentile: 99

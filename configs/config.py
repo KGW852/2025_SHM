@@ -15,13 +15,12 @@ class Config:
     @classmethod
     def exp1(cls):
         cfg = parse_config()
-        cfg["model"]["version"] = 1.0
         return cls(config_dict=cfg)
 
     @classmethod
     def exp2(cls):
         cfg = parse_config()
-        cfg["model"]["version"] = 2.1
-        cfg["epochs"] = 3
+        cfg["model"]["version"] = 1.0
+        cfg["epochs"] = 0
         cfg["learning_rate"] = 5e-3
         return cls(config_dict=cfg)

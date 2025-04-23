@@ -76,8 +76,8 @@ class ConvergentSimEvaluator:
         checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
 
-        self.center = checkpoint["center"] if "center" in checkpoint else None
-        self.radius = checkpoint["radius"] if "radius" in checkpoint else None
+        self.center = self.encoder.svdd.center.detach().clone()
+        self.radius = self.encoder.svdd.radius.detach().clone()
 
     def test_epoch(self, data_loader, epoch):
         self.load_checkpoint(epoch)
@@ -137,7 +137,7 @@ class ConvergentSimEvaluator:
         if self.mlflow_logger is not None:
             run_id_path = self.model_utils.get_file_path(f"{self.run_name}.json")
             run_id, exp_id, exp_name = self.mlflow_logger.load_run_id(run_id_path)
-            self.mlflow_logger.start_run(run_id)
+            self.mlflow_logger.resume_run(run_id)
 
         # run epochs extract
         test_run_epochs = self.model_utils.get_run_epochs(self.test_run_epoch)

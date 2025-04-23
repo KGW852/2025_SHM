@@ -19,7 +19,7 @@ class AnomalyScore(nn.Module):
         self.cfg = cfg
         self.method = cfg["anomaly"]["method"]
         self.percentile = cfg["anomaly"]["distribution_percentile"]
-        self.reconloss_type = cfg["anomaly"]["reconloss_type"]
+        self.recon_type = cfg["anomaly"]["recon_type"]
 
         self.fitted = False
         self.dist_threshold = None
@@ -54,7 +54,7 @@ class AnomalyScore(nn.Module):
         pass
 
     def reconloss_anomaly_score(self, x, x_recon):
-        if self.reconloss_type == 'mse':
+        if self.recon_type == 'mse':
             loss = F.mse_loss(x_recon, x, reduction='mean')
         else:  # self.loss_type == 'mae'
             loss = F.l1_loss(x_recon, x, reduction='mean')

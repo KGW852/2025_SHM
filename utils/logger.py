@@ -52,6 +52,17 @@ class MLFlowLogger:
             run = mlflow.start_run(run_name=run_name, experiment_id=self.experiment_id)
             self.run_id = run.info.run_id
 
+    def resume_run(self, run_id: str):
+        """
+        Resume an existing MLflow run by run_id.
+        Useful for continuing to log metrics/artifacts in a separate process/time.
+        """
+        if mlflow.active_run():
+            mlflow.end_run()
+
+        run = mlflow.start_run(run_id=run_id)
+        self.run_id = run.info.run_id
+
     def log_params(self, params: Dict):
         if mlflow.active_run():
             mlflow.log_params(params)

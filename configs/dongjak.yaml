@@ -9,12 +9,9 @@ eval:
   src_dir: ./data/dongjak/eval/eval01
   tgt_dir: ./data/dongjak/test/test18
 test:
-  src_dir: ./data/dongjak/eval/eval02
+  src_dir: ./data/dongjak/eval/eval03
   tgt_dir: ./data/dongjak/test/test18
 
 # overide default.yaml
-model:
-  model_name: convergent_sim
-
-loss:
-  recon_loss: mse
+ae:
+  recon_type: mse

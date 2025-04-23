@@ -42,17 +42,18 @@ class ConvergentSimTrainer:
             svdd_use_batchnorm=cfg["svdd"]["use_batch_norm"]
         ).to(self.device)
 
+        # loss, weight param
+        self.recon_type = cfg["ae"].get("recon_type", "mae")
+        self.ae_reduction = cfg["ae"].get("reduction", "mean")
+        self.simsiam_lamda = cfg["ae"].get("simsiam_lamda", 1.0)
+        self.svdd_lambda = cfg["ae"].get("svdd_lambda", 1.0)
+
         # criterion
         self.simsiam_criterion = SimSiamLoss().to(self.device)
         self.svdd_criterion = DeepSVDDLoss(
             nu=cfg["svdd"].get("nu", 0.1),
             reduction=cfg["svdd"].get("reduction", "mean")
         ).to(self.device)
-
-        # loss, weight param
-        self.recon_loss = cfg["ae"].get("recon", "mae")
-        self.simsiam_lamda = cfg["ae"].get("simsiam_lamda", 1.0)
-        self.svdd_lambda = cfg["ae"].get("svdd_lambda", 1.0)
 
         # optimizer, scheduler, early stopper
         self.optimizer = Optimizer(self.cfg).get_optimizer(self.encoder.parameters())
