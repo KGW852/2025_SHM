@@ -164,8 +164,12 @@ class ConvergentAEEvaluator:
             for res in test_results:
                 file_name = res["file_name"]
                 anomaly_label = res["anomaly_label"]
-                feat = torch.tensor(res["feature"]).unsqueeze(0).to(self.device)  # (1, latent_dim)
-                score_tensor = self.anomaly_score.anomaly_score(feature=feat, center=self.center)
+                
+                x = torch.tensor(res["x"]).unsqueeze(0).to(self.device)
+                x_recon = torch.tensor(res["x_recon"]).unsqueeze(0).to(self.device)
+                score_tensor = self.anomaly_score.anomaly_score(x=x, x_recon=x_recon)
+                #feat = torch.tensor(res["feature"]).unsqueeze(0).to(self.device)  # (1, latent_dim)
+                #score_tensor = self.anomaly_score.anomaly_score(feature=feat, center=self.center)
 
                 file_names.append(file_name)
                 y_true.append(anomaly_label)

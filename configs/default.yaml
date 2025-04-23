@@ -18,7 +18,7 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
@@ -134,7 +134,7 @@ pca:
 
 # anomaly score metric
 anomaly:
-  method: distance  # simsiam, distance, distribution, reconloss
+  method: reconloss  # simsiam, distance, distribution, reconloss
   recon_type: mse
   thresholded: 
   distribution_percentile: 99
