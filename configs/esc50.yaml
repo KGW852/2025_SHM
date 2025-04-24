@@ -14,4 +14,4 @@ test:
 
 # overide default.yaml
 ae:
-  recon_type: mse
+  svdd_lambda: 1.0

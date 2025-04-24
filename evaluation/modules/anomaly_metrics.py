@@ -53,11 +53,11 @@ class AnomalyScore(nn.Module):
     def distribution_anomaly_score(self):
         pass
 
-    def reconloss_anomaly_score(self, x, x_recon):
+    def reconloss_anomaly_score(self, x_recon, x):
         if self.recon_type == 'mse':
-            loss = F.mse_loss(x_recon, x, reduction='mean')
+            loss = F.mse_loss(x_recon, x, reduction='sum')
         else:  # self.loss_type == 'mae'
-            loss = F.l1_loss(x_recon, x, reduction='mean')
+            loss = F.l1_loss(x_recon, x, reduction='sum')
         return loss
 
     def anomaly_score(self, **kwargs) -> torch.Tensor:
@@ -85,7 +85,7 @@ class AnomalyScore(nn.Module):
             x_recon = kwargs.get('x_recon', None)
             if x is None or x_recon is None:
                 raise ValueError("For 'reconloss' method, please provide x, x_recon.")
-            anomaly_score = self.reconloss_anomaly_score(x, x_recon)
+            anomaly_score = self.reconloss_anomaly_score(x_recon, x)
 
         else:
             raise ValueError(f"Unknown anomaly detection method: {self.method}")

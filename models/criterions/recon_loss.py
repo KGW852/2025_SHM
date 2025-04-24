@@ -13,10 +13,10 @@ class ReconLoss(nn.Module):
         self.loss_type = loss_type
         self.reduction = reduction
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(self, x_recon: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         if self.loss_type == 'mse':
-            loss = F.mse_loss(pred, target, reduction=self.reduction)
+            loss = F.mse_loss(x_recon, x, reduction=self.reduction)
         else:  # self.loss_type == 'mae'
-            loss = F.l1_loss(pred, target, reduction=self.reduction)
+            loss = F.l1_loss(x_recon, x, reduction=self.reduction)
         
         return loss

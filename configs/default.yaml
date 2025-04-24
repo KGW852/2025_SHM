@@ -6,13 +6,13 @@ seed: 42
 
 # path
 model:
-  data_name: esc50
-  model_name: sim_svdd_ae
-  trainer: sim_svdd_ae_trainer.py
-  trainer_fn: SimSVDDAETrainer
-  evaluator: sim_svdd_ae_evaluator.py
-  evaluator_fn: SimSVDDAEEvaluator
-  version: 1.0
+  data_name: dongjak
+  model_name: mlp_ae
+  trainer: mlp_ae_trainer.py
+  trainer_fn: MLPAETrainer
+  evaluator: mlp_ae_evaluator.py
+  evaluator_fn: MLPAEEvaluator
+  version: 1.1
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -70,7 +70,7 @@ mlflow:
 
 # ae parameters
 ae:
-  recon_type: mse
+  recon_type: mae
   reduction: mean
   simsiam_lamda: 1.0
   svdd_lambda: 1.0
@@ -78,8 +78,8 @@ ae:
 # mlp parameters
 mlp:
   in_dim: 1024
-  enc_hidden_dims: [512, 256, 128, 64]
-  enc_latent_dim: 64
+  enc_hidden_dims: [512, 256, 128, 64, 32, 16]
+  enc_latent_dim: 16
   dec_latent_dim: 16
   dec_hidden_dims: [32, 64, 128, 256, 512, 1024]
   out_channels: 2
