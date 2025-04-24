@@ -101,7 +101,7 @@ class MLPAETrainer:
             recons_loss_t += recon_loss_t.item()
             
             # mlflow log: global step
-            if self.mlflow_logger is not None and batch_idx % 40 == 0:
+            if self.mlflow_logger is not None and batch_idx % 67 == 0:
                 global_step = epoch * len(train_loader) + batch_idx
                 self.mlflow_logger.log_metrics({"train_loss_step": loss.item(),"train_recon_loss_step": recon_loss.item(), 
                                                 "train_recon_s_loss_step": recon_loss_s.item(), "train_recon_t_loss_step": recon_loss_t.item(), }, step=global_step)
@@ -172,7 +172,7 @@ class MLPAETrainer:
                 recons_loss_t += recon_loss_t.item()
 
                 # mlflow log: global step
-                if self.mlflow_logger is not None and batch_idx % 2 == 0:
+                if self.mlflow_logger is not None and batch_idx % 1 == 0:
                     global_step = epoch * len(eval_loader) + batch_idx
                     self.mlflow_logger.log_metrics({"eval_loss_step": loss.item(), "eval_recon_loss_step": recon_loss.item(), 
                                                     "eval_recon_s_loss_step": recon_loss_s.item(), "eval_recon_t_loss_step": recon_loss_t.item(), }, step=global_step)
