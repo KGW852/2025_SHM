@@ -1,13 +1,12 @@
-# evaluation/convergent_sim_evaluator.py
+# evaluation/sim_svdd_enc_evaluator.py
 
 import os
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 
-from models.convergent_sim import ConvergentSim
+from models.sim_svdd_enc import SimSVDDEnc
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from utils.datalist_utils import remove_duplicates
@@ -16,7 +15,7 @@ from evaluation.modules.umap import UMAPPlot
 from evaluation.modules.pca import PCAPlot
 
 
-class ConvergentSimEvaluator:
+class SimSVDDEncEvaluator:
     """
     SimSiam Domain Adaptation evaluator
     Args:
@@ -29,7 +28,7 @@ class ConvergentSimEvaluator:
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # model
-        self.encoder = ConvergentSim(
+        self.encoder = SimSVDDEnc(
             enc_in_dim=cfg["mlp"]["in_dim"],
             enc_hidden_dims=cfg["mlp"]["enc_hidden_dims"],
             enc_latent_dim=cfg["mlp"]["enc_latent_dim"],

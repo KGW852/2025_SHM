@@ -7,18 +7,18 @@ seed: 42
 # path
 model:
   data_name: esc50
-  model_name: convergent_ae
-  trainer: convergent_ae_trainer.py
-  trainer_fn: ConvergentAETrainer
-  evaluator: convergent_ae_evaluator.py
-  evaluator_fn: ConvergentAEEvaluator
+  model_name: sim_svdd_ae
+  trainer: sim_svdd_ae_trainer.py
+  trainer_fn: SimSVDDAETrainer
+  evaluator: sim_svdd_ae_evaluator.py
+  evaluator_fn: SimSVDDAEEvaluator
   version: 1.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
 eval:  # not used
@@ -38,7 +38,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 1
+epochs: 5
 log_every: 1
 save_every: 1
 

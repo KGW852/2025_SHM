@@ -8,8 +8,6 @@ import importlib
 
 from configs.config import Config
 from dataloaders.data_loader import get_train_loader, get_eval_loader, get_test_loader
-#from trainers.convergent_sim_trainer import ConvergentSimTrainer
-#from evaluation.convergent_sim_evaluator import ConvergentSimEvaluator
 from utils.logger import MLFlowLogger
 
 

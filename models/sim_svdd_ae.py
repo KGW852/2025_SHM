@@ -1,12 +1,13 @@
-# models/convergent_sim.py
+# models/sim_svdd_ae.py
 
 import torch
 import torch.nn as nn
 from .modules.encoder import MLPEncoder
+from .modules.decoder import MLPDecoder
 from .modules.simsiam import SimSiam
 from .modules.deep_svdd import DeepSVDD, SVDDBackbone
 
-class ConvergentSim(nn.Module):
+class SimSVDDAE(nn.Module):
     """
     Combine MLPEncoder and SimSiam for source/target domain inputs.
     then pass z_s, z_t to DeepSVDD for additional feature processing (or identity).
@@ -19,30 +20,37 @@ class ConvergentSim(nn.Module):
         dist_s, dist_t: L2 squared distance to the SVDD center (for One-Class Objective)
     """
     def __init__(self,
+                 # AE
                  enc_in_dim: int,
                  enc_hidden_dims: list,
                  enc_latent_dim: int,
-                 enc_dropout: float = 0.0,
-                 enc_use_batchnorm: bool = False,
+                 dec_latent_dim: int,
+                 dec_hidden_dims: list,
+                 dec_out_channels: int,
+                 dec_out_seq_len: int,
+                 ae_dropout: float = 0.0,
+                 ae_use_batchnorm: bool = False,
+                 # SimSiam
                  proj_hidden_dim: int = 64,
                  proj_out_dim: int = 64,
                  pred_hidden_dim: int = 32,
                  pred_out_dim: int = 64,
+                 # SVDD
                  svdd_in_dim: int = 64,
                  svdd_hidden_dims: list = [32],
                  svdd_latent_dim: int = 32,
                  svdd_dropout: float = 0.0,
                  svdd_use_batchnorm: bool = False
                  ):
-        super(ConvergentSim, self).__init__()
+        super(SimSVDDAE, self).__init__()
 
         # MLP Encoder
         self.encoder = MLPEncoder(
             in_dim=enc_in_dim,
             hidden_dims=enc_hidden_dims,
             latent_dim=enc_latent_dim,
-            dropout=enc_dropout,
-            use_batchnorm=enc_use_batchnorm)
+            dropout=ae_dropout,
+            use_batchnorm=ae_use_batchnorm)
         
         # SimSiam
         self.simsiam = SimSiam(
@@ -51,6 +59,15 @@ class ConvergentSim(nn.Module):
             proj_out_dim=proj_out_dim,
             pred_hidden_dim=pred_hidden_dim,
             pred_out_dim=pred_out_dim)
+        
+        # MLP Decoder
+        self.decoder = MLPDecoder(
+            latent_dim=dec_latent_dim,
+            hidden_dims=dec_hidden_dims,
+            out_channels=dec_out_channels,
+            out_seq_len=dec_out_seq_len,
+            dropout=ae_dropout,
+            use_batchnorm=ae_use_batchnorm)
         
         # DeepSVDD backbone
         self.svdd_backbone = SVDDBackbone(
@@ -74,10 +91,14 @@ class ConvergentSim(nn.Module):
         feat_s, dist_s = self.svdd(z_s)  # (B, svdd_latent_dim), (B,)
         feat_t, dist_t = self.svdd(z_t)
 
+        x_s_recon = self.decoder(feat_s)  # (B, C, T)
+        x_t_recon = self.decoder(feat_t)
+
         return (
             e_s, e_t,        # encoder outputs
             z_s, p_s,        # simsiam outputs (source)
             z_t, p_t,        # simsiam outputs (target)
             feat_s, feat_t,  # svdd feature (from z_s, z_t)
-            dist_s, dist_t   # distance to svdd center
+            dist_s, dist_t,   # distance to svdd center
+            x_s_recon, x_t_recon
         )
