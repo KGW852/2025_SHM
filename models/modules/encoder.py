@@ -2,7 +2,8 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torchvision import models
+
 
 from .tcn import TemporalBlock
 
@@ -104,4 +105,56 @@ class TCNEncoder(BaseEncoder):
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.tcn(x)  # (B, out_ch, out_seq_len)
+
+class ResNet50Encoder(nn.Module):
+    """
+    Encoder for feature extraction from image data using pretrained ResNet50.
+    Args:
+        latent_dim (int, optional): Dimension of the output feature vector. If None, uses ResNet50's default feature dimension (2048).
+        freeze (bool): Whether to freeze ResNet50 weights. Defaults to True.
     
+    Input shape: (batch_size, 3, height, width)
+    Output shape: (batch_size, latent_dim) or (batch_size, 2048) if latent_dim is None
+    
+    Note:
+        For optimal performance, resize input images to 224x224 and apply ImageNet normalization
+        (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]).
+    """
+    def __init__(self, latent_dim=None, freeze=True):
+        super(ResNet50Encoder, self).__init__()
+        # Load pretrained ResNet50
+        resnet = models.resnet50(weights='DEFAULT')
+        
+        # Remove the final fully connected layer for feature extraction
+        self.features = nn.Sequential(*list(resnet.children())[:-1])
+        
+        # Freeze weights if specified
+        if freeze:
+            for param in self.features.parameters():
+                param.requires_grad = False
+        
+        # Store ResNet50 feature dimension
+        self.feature_dim = resnet.fc.in_features  # 2048
+        
+        # Add linear layer to adjust output dimension if specified
+        if latent_dim is not None:
+            self.fc = nn.Linear(self.feature_dim, latent_dim)
+        else:
+            self.fc = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the encoder.
+        Args:
+            x (torch.Tensor): Input image tensor of shape (batch_size, 3, height, width)
+        Returns:
+            torch.Tensor: Feature tensor of shape (batch_size, latent_dim) or (batch_size, 2048)
+        """
+        # Extract features using ResNet50
+        x = self.features(x)  # Shape: (batch_size, 2048, 1, 1)
+        x = x.view(x.size(0), -1)  # Shape: (batch_size, 2048)
+        
+        # Apply linear layer if specified
+        if self.fc is not None:
+            x = self.fc(x)  # Shape: (batch_size, latent_dim)
+        return x

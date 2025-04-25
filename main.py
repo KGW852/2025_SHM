@@ -1,13 +1,12 @@
 # main.py
 
-import argparse
 import random
 import numpy as np
 import torch
 import importlib
 
 from configs.config import Config
-from dataloaders.data_loader import get_train_loader, get_eval_loader, get_test_loader
+from dataloaders.data_loader import get_img_train_loader, get_img_eval_loader, get_img_test_loader
 from utils.logger import MLFlowLogger
 
 
@@ -55,9 +54,9 @@ def run_experiment(exp_name: str):
     device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
 
     # dataloader
-    train_loader = get_train_loader(cfg)
-    eval_loader = get_eval_loader(cfg)
-    test_loader = get_test_loader(cfg)
+    train_loader = get_img_train_loader(cfg)
+    eval_loader = get_img_eval_loader(cfg)
+    test_loader = get_img_test_loader(cfg)
 
     # dynamic trainer
     if cfg["train"].get("use", False):

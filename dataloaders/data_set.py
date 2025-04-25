@@ -2,6 +2,8 @@
 import os
 import random
 import torch
+
+from PIL import Image
 from torch.utils.data import Dataset
 
 from utils.csv_utils import read_csv
@@ -24,13 +26,13 @@ class CustomDataset(Dataset):
     """
     Args:
         data_name (str): dataset name, e.g., 'esc50', 'dongjak', 'anoshift'
-        file_paths (List[str]): CSV file directory list
+        data_path (List[str]): CSV file directory list
         transform (callable, optional): transform function to be applied to the data tensor.
     """
-    def __init__(self, data_name, file_paths, transform=None):
+    def __init__(self, data_name, data_path, transform=None):
         super().__init__()
         self.data_name = data_name
-        self.file_paths = file_paths
+        self.data_path = data_path
         self.transform = transform
 
         if data_name not in COLUMN_MAP or data_name not in LABEL_FUNC_MAP:
@@ -40,10 +42,10 @@ class CustomDataset(Dataset):
         self.label_func = LABEL_FUNC_MAP[data_name]
 
     def __len__(self):
-        return len(self.file_paths)
+        return len(self.data_path)
 
     def __getitem__(self, idx):
-        csv_path = self.file_paths[idx]
+        csv_path = self.data_path[idx]
         file_name = os.path.basename(csv_path)
         rows = read_csv(csv_path, skip_header=True)
 
@@ -51,11 +53,7 @@ class CustomDataset(Dataset):
         ch2_list = []
         for row in rows:
             ch1_val = float(row[self.ch1_col]) if self.ch1_col is not None else 0.0
-
-            if self.ch2_col is None:
-                ch2_val = 0.0
-            else:
-                ch2_val = float(row[self.ch2_col])
+            ch2_val = float(row[self.ch2_col]) if self.ch2_col is not None else 0.0
             
             ch1_list.append(ch1_val)
             ch2_list.append(ch2_val)
@@ -71,7 +69,40 @@ class CustomDataset(Dataset):
         label_tensor = torch.tensor([class_label, anomaly_label], dtype=torch.long)
 
         return data_tensor, label_tensor, file_name
-    
+
+class ImgCustomDataset(Dataset):
+    def __init__(self, data_name, data_path, transform=None):
+        super().__init__()
+        self.data_name = data_name
+        self.data_path = data_path
+        self.transform = transform
+
+        if data_name not in LABEL_FUNC_MAP:
+            raise ValueError(f"Unknown data_name: {data_name}")
+
+        self.label_func = LABEL_FUNC_MAP[data_name]
+
+        self.labels = []
+        for path in self.data_path:
+            class_label, anomaly_label = self.label_func(path)
+            self.labels.append(torch.tensor([class_label, anomaly_label], dtype=torch.long))
+
+    def __len__(self):
+        return len(self.data_path)
+
+    def __getitem__(self, idx):
+        img_path = self.data_path[idx]
+        file_name = os.path.basename(img_path)
+        image = Image.open(img_path).convert('RGB')
+
+        if self.transform:
+            image = self.transform(image)
+
+        label_tensor = self.labels[idx]
+
+        return image, label_tensor, file_name
+
+
 class DomainDataset(Dataset):
     """
     Args:
@@ -90,43 +121,39 @@ class DomainDataset(Dataset):
         self.source_length = len(self.source_dataset)
         self.target_length = len(self.target_dataset)
 
-        self.pairwise_data = self._build_pair_samples()
+        self.pair_indices = self._build_pair_indices()
 
-    def _build_pair_samples(self):
+    def _build_pair_indices(self):
         """
-        In pairwise, pre-construct (src, tgt) pairs using n_samples items (or all),
-        each class label in the source, select n_samples to match with the same targets.
+        Build a list of (src_idx, tgt_idx) pairs based on n_samples and match_strategy.
         """
-        source_data_by_label = {}
+        source_indices_by_label = {}
         for idx in range(self.source_length):
-            s_data, s_label, s_path = self.source_dataset[idx]
-            class_label = s_label[0].item()  # s_label = [class_label, anomaly_label]
-            if class_label not in source_data_by_label:
-                source_data_by_label[class_label] = []
-            source_data_by_label[class_label].append((s_data, s_label, s_path))
+            class_label = self.source_dataset.labels[idx][0].item()
+            if class_label not in source_indices_by_label:
+                source_indices_by_label[class_label] = []
+            source_indices_by_label[class_label].append(idx)
 
-        # sampling n_samples items per label (or all)
-        for cl_label in source_data_by_label:
-            if self.n_samples != -1 and len(source_data_by_label[cl_label]) > self.n_samples:
-                source_data_by_label[cl_label] = source_data_by_label[cl_label][: self.n_samples]
+        # select n_samples indices per class in source (or all if n_samples=-1)
+        for cl_label in source_indices_by_label:
+            if self.n_samples != -1 and len(source_indices_by_label[cl_label]) > self.n_samples:
+                source_indices_by_label[cl_label] = source_indices_by_label[cl_label][:self.n_samples]
 
-        # sampling n_samples items from the target (or all)
-        all_target_data = []
-        for idx in range(self.target_length):
-            t_data, t_label, t_path = self.target_dataset[idx]
-            all_target_data.append((t_data, t_label, t_path))
-        if self.n_samples != -1 and len(all_target_data) > self.n_samples:
-            all_target_data = all_target_data[: self.n_samples]
+        # select n_samples target indices (or all if n_samples=-1)
+        if self.n_samples != -1 and self.target_length > self.n_samples:
+            selected_tgt_indices = list(range(self.n_samples))
+        else:
+            selected_tgt_indices = list(range(self.target_length))
 
-        if len(all_target_data) == 0:
+        len_tgt = len(selected_tgt_indices)
+        if len_tgt == 0:
             return []
 
         # calculate the maximum length (L_max) of the label group
-        label_group_lengths = [len(src_list) for src_list in source_data_by_label.values()]
+        label_group_lengths = [len(src_list) for src_list in source_indices_by_label.values()]
         L_max = max(label_group_lengths) if label_group_lengths else 0
 
-        # L_max-sized list pattern_idxs
-        len_tgt = len(all_target_data)
+        # create pattern_idxs for pairing based on match_strategy
         pattern_idxs = []
         for i in range(L_max):
             if self.match_strategy == 'sequential':
@@ -136,31 +163,29 @@ class DomainDataset(Dataset):
             else:
                 raise ValueError(f"Unknown match strategy: {self.match_strategy}")
             
-        # For each source label, perform 1:1 matching between the list of samples for that label and target_samples
-        pairwise_data = []
-        for cl_label, src_list in source_data_by_label.items():
-            group_len = len(src_list)
-            for i in range(group_len):
-                src_data, src_label, src_path = src_list[i]
-                if i < L_max:
-                    tgt_idx = pattern_idxs[i]
-                else:
-                    if self.match_strategy == 'sequential':
-                        tgt_idx = i % len_tgt
-                    else:  # 'random'
-                        tgt_idx = random.randint(0, len_tgt - 1)
+        # build list of (source_index, target_index) pairs
+        pairwise_indices = []
+        for cl_label, src_indices in source_indices_by_label.items():
+            for i, src_idx in enumerate(src_indices):
+                tgt_pattern_idx = pattern_idxs[i]
+                tgt_idx = selected_tgt_indices[tgt_pattern_idx]
+                pairwise_indices.append((src_idx, tgt_idx))
 
-                tgt_data, tgt_label, tgt_path = all_target_data[tgt_idx]
-                pairwise_data.append(((src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path)))
-
-        return pairwise_data
+        return pairwise_indices
 
     def __len__(self):
-        return len(self.pairwise_data)
+        return len(self.pair_indices)
 
     def __getitem__(self, idx):
-        if idx >= len(self.pairwise_data):
-            raise IndexError("Index out of range for the constructed pairwise_data.")
-        (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path) = self.pairwise_data[idx]
+        """
+        Return actual data from source/target dataset by the pair of indices.
+        """
+        if idx >= len(self.pair_indices):
+            raise IndexError("Index out of range for pair_indices.")
+
+        src_idx, tgt_idx = self.pair_indices[idx]
+        src_data, src_label, src_path = self.source_dataset[src_idx]
+        tgt_data, tgt_label, tgt_path = self.target_dataset[tgt_idx]
 
         return (src_data, src_label, src_path), (tgt_data, tgt_label, tgt_path)
+    

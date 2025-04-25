@@ -1,17 +1,32 @@
 # configs/esc50.yaml
 
 # path
-root_dir: ./data/ESC50
+root_dir: ./data/ESC50(spectrogram)
 train:
-  src_dir: ./data/ESC50/train
-  tgt_dir: ./data/ESC50/test/test40
+  src_dir: ./data/ESC50(spectrogram)/train
+  tgt_dir: ./data/ESC50(spectrogram)/test/test40
 eval:
-  src_dir: ./data/ESC50/eval/eval01
-  tgt_dir: ./data/ESC50/test/test40
+  src_dir: ./data/ESC50(spectrogram)/eval/eval01
+  tgt_dir: ./data/ESC50(spectrogram)/test/test40
 test:
-  src_dir: ./data/ESC50/eval/eval02
-  tgt_dir: ./data/ESC50/test/test40
+  src_dir: ./data/ESC50(spectrogram)/eval/eval02
+  tgt_dir: ./data/ESC50(spectrogram)/test/test40
 
 # overide default.yaml
 ae:
   svdd_lambda: 1.0
+
+# original path
+orig_dir:
+  src_dir: ./data/ESC50(original)/source
+  tgt_dir: ./data/ESC50(original)/target
+  s1_dir: ./data/ESC50(original)/s1
+
+# preprocess parameters
+preprocess:
+  sr: 44100
+  nsample: 1024
+  n_fft: 512
+  hop_length: 2
+  window: hann
+  nsplit: 1722  # normal to train, eval split ratio(float) or number(int)

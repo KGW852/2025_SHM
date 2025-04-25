@@ -1,9 +1,17 @@
 # Ignore the data/ESC50 folder
 data/ESC50/
+data/ESC50(original)/
+data/ESC50(spectrogram)/
+
 data/dongjak/
+data/dongjak(original)/
+data/dongjak(spectrogram)/
 
 # Ignore the Kyoto-2016_AnoShift.tar file
 Kyoto-2016_AnoShift.tar
+
+# Ignore pretrained model
+models/pretrained/Cnn14_mAP=0.431.pth
 
 # Ignore .pth files in the logs/ folder
 logs/
