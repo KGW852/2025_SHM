@@ -52,4 +52,4 @@ preprocess:
   n_fft: 256
   hop_length: 6
   window: hann
-  nsplit: 1722  # normal to train, eval split ratio(float) or number(int)
+  nsplit: 2852  # normal to train, eval split ratio(float) or number(int)

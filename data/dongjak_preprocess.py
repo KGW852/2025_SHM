@@ -218,7 +218,7 @@ class Preprocessor:
         dump(eval_norm, self.eval_dirs["eval01"], "normal")
         dump(eval02_norm, self.eval_dirs["eval02"], "normal")
         dump(eval03_norm, self.eval_dirs["eval03"], "normal")
-        dump(s1s, self.eval_dirs["eval02"], "s1")        
+        dump(s1s, self.eval_dirs["eval02"], "s1")
         dump(s2s, self.eval_dirs["eval03"], "s2")
 
         dump(test00, self.test_dirs["test00"], "test00")
