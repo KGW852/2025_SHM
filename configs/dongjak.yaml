@@ -18,10 +18,18 @@ ae:
 
 # original path
 orig_dir:
-  src_dir: ./data/dongjak(original)/source
-  tgt_dir: ./data/dongjak(original)/target
-  s1_dir: ./data/dongjak(original)/s1
-  s2_dir: ./data/dongjak(original)/s2
+  src_dir: ./data/dongjak(original)_girder/normal
+  tgt_dir: ./data/dongjak(original)_girder/test
+  s1_dir: ./data/dongjak(original)_girder/s1
+  s2_dir: ./data/dongjak(original)_girder/s2
+
+noise:
+  save_dir: ./data/dongjak(original)_girder
+  src_scale: 1.5
+  tgt_scale: 0.5
+  random_seed: 42
+  src_iter: 1
+  tgt_iter: 5
 
 # preprocess parameters
 preprocess:

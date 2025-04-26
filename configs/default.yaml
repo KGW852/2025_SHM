@@ -18,7 +18,7 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
@@ -30,10 +30,10 @@ test:
 
 # data parameters
 match_strategy: sequential  # random, sequential
-img_height: 224
-img_width: 224
-train_n_samples: -1  # -1: all
-eval_n_samples: -1
+img_height: 64
+img_width: 64
+train_n_samples: 860  # -1: all
+eval_n_samples: 430
 test_n_samples: 100
 batch_size: 8
 n_workers: 8
@@ -92,8 +92,8 @@ mlp_ae:
 # resnet_ae parameters
 resnet_ae:
   channels: 3
-  height: 224
-  width: 224
+  height: 64
+  width: 64
   enc_freeze: True
   enc_latent_dim: 2048
   dec_latent_dim: 2048

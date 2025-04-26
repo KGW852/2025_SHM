@@ -5,8 +5,8 @@ import random
 import shutil
 
 from configs.config import Config
+from data.tools_preprocess import Segmenter
 
-from math import ceil
 import numpy as np
 import pandas as pd
 import soundfile as sf
@@ -21,34 +21,6 @@ def get_configs():
     config = Config.exp1()
     cfg = config.config_dict
     return cfg
-
-class Segmenter:
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.nsample = cfg["preprocess"].get("nsample", 1024)
-
-    def data_overlap(self, nlength: int):
-        seg_size = self.nsample
-        if nlength <= seg_size:
-            return [(0, nlength)]
-        
-        count = (nlength - seg_size) / seg_size
-        s = int(ceil(count)) + 1
-
-        # min overlap: 50%
-        min_s = int(ceil(2 * (nlength - seg_size) / seg_size)) + 1
-        s = max(s, min_s)
-
-        step = (nlength - seg_size) / (s - 1)
-        segments = []
-        for i in range(s):
-            start_idx = int(round(i * step))
-            end_idx = start_idx + seg_size
-            if i == s - 1:
-                start_idx = nlength - seg_size
-                end_idx = nlength
-            segments.append((start_idx, end_idx))
-        return segments
     
 def save_stft_image(save_path: str, chunk: np.ndarray, sr: int, n_fft: int, hop_length: int, window: str, figsize: tuple=(2.56, 2.56)):
     # STFT

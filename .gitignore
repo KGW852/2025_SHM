@@ -5,6 +5,7 @@ data/ESC50(spectrogram)/
 
 data/dongjak/
 data/dongjak(original)/
+data/dongjak(original)_girder/
 data/dongjak(spectrogram)/
 
 # Ignore the Kyoto-2016_AnoShift.tar file

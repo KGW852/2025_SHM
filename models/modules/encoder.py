@@ -132,6 +132,7 @@ class ResNet50Encoder(nn.Module):
         if freeze:
             for param in self.features.parameters():
                 param.requires_grad = False
+            self.features.eval()
         
         # Store ResNet50 feature dimension
         self.feature_dim = resnet.fc.in_features  # 2048
