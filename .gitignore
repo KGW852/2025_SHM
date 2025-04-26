@@ -7,6 +7,7 @@ data/dongjak/
 data/dongjak(original)/
 data/dongjak(original)_girder/
 data/dongjak(spectrogram)/
+data/dongjak(spectrogram)_girder/
 
 # Ignore the Kyoto-2016_AnoShift.tar file
 Kyoto-2016_AnoShift.tar

@@ -1,16 +1,16 @@
 # configs/dongjak.yaml
 
 # path
-root_dir: ./data/dongjak
+root_dir: ./data/dongjak(spectrogram)_girder
 train:
-  src_dir: ./data/dongjak/train
-  tgt_dir: ./data/dongjak/test/test18
+  src_dir: ./data/dongjak(spectrogram)_girder/train
+  tgt_dir: ./data/dongjak(spectrogram)_girder/test/test18
 eval:
-  src_dir: ./data/dongjak/eval/eval01
-  tgt_dir: ./data/dongjak/test/test18
+  src_dir: ./data/dongjak(spectrogram)_girder/eval/eval01
+  tgt_dir: ./data/dongjak(spectrogram)_girder/test/test18
 test:
-  src_dir: ./data/dongjak/eval/eval03
-  tgt_dir: ./data/dongjak/test/test18
+  src_dir: ./data/dongjak(spectrogram)_girder/eval/eval03
+  tgt_dir: ./data/dongjak(spectrogram)_girder/test/test18
 
 # overide default.yaml
 ae:
@@ -18,21 +18,35 @@ ae:
 
 # original path
 orig_dir:
-  src_dir: ./data/dongjak(original)_girder/normal
-  tgt_dir: ./data/dongjak(original)_girder/test
+  normal_dir: ./data/dongjak(original)_girder/normal
+  test_dir: ./data/dongjak(original)_girder/test
   s1_dir: ./data/dongjak(original)_girder/s1
   s2_dir: ./data/dongjak(original)_girder/s2
+
+# preprocess save path
+train_dir:
+  train: ./data/dongjak(spectrogram)_girder/train
+eval_dir:
+  eval01: ./data/dongjak(spectrogram)_girder/eval/eval01
+  eval02: ./data/dongjak(spectrogram)_girder/eval/eval02
+  eval03: ./data/dongjak(spectrogram)_girder/eval/eval03
+test_dir:
+  test00: ./data/dongjak(spectrogram)_girder/test/test00
+  test18: ./data/dongjak(spectrogram)_girder/test/test18
+  test23: ./data/dongjak(spectrogram)_girder/test/test23
 
 noise:
   save_dir: ./data/dongjak(original)_girder
   src_scale: 1.5
   tgt_scale: 0.5
-  random_seed: 42
+  src_modulation: 0.5
+  tgt_modulation: 0.5
   src_iter: 1
   tgt_iter: 5
 
 # preprocess parameters
 preprocess:
+  random_seed: 42
   sr: 100
   nsample: 1024
   n_fft: 256

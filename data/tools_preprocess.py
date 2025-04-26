@@ -150,45 +150,35 @@ class NoiseData:
 
         return interpolate_psd
 
-    # Noise data generate: random phase
-    def data_noise(self, psd, data, seed=None):
+    # Noise data generation: random amplitude modulation
+    def noise_amp_modulation(self, out_len: int, f: np.ndarray, psd: np.ndarray, sr: int, scale: float, modulation: float, seed: int|None=None):
         if seed is not None:
-            np.random.seed(seed)
+            rng = np.random.default_rng(seed)  # helper to stay NumPy‑ish
+            np_random = rng.random
+            np_choice = rng.choice
+        else:
+            np_random = np.random.rand
+            np_choice = np.random.choice
 
-        # amplitude spectrum
-        amp_spectrum = np.sqrt(psd)
+        # random‑phase noise synthesis
+        amp = np.sqrt(psd)
+        phase = 2.0 * np.pi * np_random(len(amp)).astype(np.float32)
+        spec = amp * np.exp(1j * phase)
+        noise = np.fft.irfft(spec, n=out_len).astype(np.float32)
 
-        # random phase
-        nf = len(amp_spectrum)
-        phase = 2 * np.pi * np.random.rand(nf)
-
-        # complex spectrum
-        comp_spectrum = amp_spectrum * np.exp(1j * phase)
-
-        # Inverse FFT
-        noise = np.fft.irfft(comp_spectrum, n=len(data))
+        # global scaling
+        noise *= scale
+        
+        # amplitude modulation: probability distribution proportional to PSD power
+        if modulation > 0.0 and psd.sum() > 0.0:
+            prob = psd / psd.sum()
+            carrier = float(np_choice(f, p=prob))
+            phase_c = 2.0 * np.pi * np_random()
+            t = np.arange(out_len, dtype=np.float32) / sr
+            modulator = 1.0 + modulation * np.sin(2.0 * np.pi * carrier * t + phase_c)
+            noise *= modulator.astype(np.float32)
 
         return noise
-
-    # Noise data generation: random amplitude modulation
-    def amplitude_modulation(self, signal, mod_freq, mod_index, sr, random_phase, seed):
-        if seed is not None and random_phase:
-            np.random.seed(seed)
-
-        length = len(signal)
-        time = np.arange(length) / sr
-        phase = 0.0 # Fixed phase
-
-        if random_phase:
-            phase = 2 * np.pi * np.random.rand()
-
-        # Modulation signal: Amp(t) = 1 + m * sin(2πf t + φ)
-        modulator = 1.0 + mod_index * np.sin(2 * np.pi * mod_freq * time + phase)
-
-        # Amplitude modulation
-        signal_mod = signal * modulator
-
-        return signal_mod
     
 # Baseline fitting
 class BaselineFitter:

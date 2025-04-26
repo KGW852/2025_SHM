@@ -6,7 +6,7 @@ seed: 42
 
 # path
 model:
-  data_name: esc50
+  data_name: dongjak
   model_name: resnet_ae
   trainer: resnet_ae_trainer.py
   trainer_fn: ResNetAETrainer
