@@ -18,7 +18,7 @@ model:
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
 eval:  # not used
@@ -32,9 +32,9 @@ test:
 match_strategy: sequential  # random, sequential
 img_height: 64
 img_width: 64
-train_n_samples: 860  # -1: all
-eval_n_samples: 430
-test_n_samples: 100
+train_n_samples: -1  # -1: all
+eval_n_samples: -1
+test_n_samples: 200
 batch_size: 8
 n_workers: 8
 
