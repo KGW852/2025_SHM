@@ -1,4 +1,4 @@
-# evaluation/resnet_ae_evaluator.py
+# evaluation/resnet_sim_ae_evaluator.py
 
 import os
 import torch
@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
-from models.resnet_ae import ResNetAE
+from models.resnet_sim_ae import ResNetSimAE
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
 from utils.datalist_utils import remove_duplicates
@@ -15,7 +15,7 @@ from evaluation.modules.umap import UMAPPlot
 from evaluation.modules.pca import PCAPlot
 
 
-class ResNetAEEvaluator:
+class ResSimAEEvaluator:
     """
     Evaluator for ResNet AutoEncoder (ResNetAE) model.
     Args:
@@ -28,7 +28,7 @@ class ResNetAEEvaluator:
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # Model initialization
-        self.model = ResNetAE(
+        self.model = ResNetSimAE(
             channels=cfg["resnet_ae"].get("channels", 3),
             height=cfg["resnet_ae"].get("height"),
             width=cfg["resnet_ae"].get("width"),
@@ -36,7 +36,12 @@ class ResNetAEEvaluator:
             dec_latent_dim=cfg["resnet_ae"].get("dec_latent_dim", 2048),
             dec_hidden_dims=cfg["resnet_ae"].get("dec_hidden_dims"),
             dropout=cfg["resnet_ae"].get("dropout", 0.0),
-            use_batchnorm=cfg["resnet_ae"].get("use_batch_norm", False)
+            use_batchnorm=cfg["resnet_ae"].get("use_batch_norm", False),
+
+            proj_hidden_dim=cfg["sim"].get("proj_hidden_dim", 512),
+            proj_out_dim=cfg["sim"].get("proj_out_dim", 512),
+            pred_hidden_dim=cfg["sim"].get("pred_hidden_dim", 256),
+            pred_out_dim=cfg["sim"].get("pred_out_dim", 512),
         ).to(self.device)
 
         # Run parameters
@@ -79,7 +84,7 @@ class ResNetAEEvaluator:
                 x_t = tgt_data.to(self.device)
 
                 # Forward pass
-                (e_s, e_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
 
                 batch_size = len(src_path)
                 for i in range(batch_size):
@@ -93,6 +98,7 @@ class ResNetAEEvaluator:
                         "file_name": src_path[i],
                         "x": x_s[i].cpu().numpy(),
                         "encoder": e_s[i].cpu().numpy(),
+                        "projector": z_s[i].cpu().numpy(),
                         "x_recon": x_s_recon[i].cpu().numpy(),
                         "class_label": class_label_src,
                         "anomaly_label": anomaly_label_src,
@@ -102,6 +108,7 @@ class ResNetAEEvaluator:
                         "file_name": tgt_path[i],
                         "x": x_t[i].cpu().numpy(),
                         "encoder": e_t[i].cpu().numpy(),
+                        "projector": z_t[i].cpu().numpy(),
                         "x_recon": x_t_recon[i].cpu().numpy(),
                         "class_label": class_label_tgt,
                         "anomaly_label": anomaly_label_tgt,
@@ -128,22 +135,34 @@ class ResNetAEEvaluator:
 
             # Latent space visualization
             enc_list = [res["encoder"] for res in test_results]
+            proj_list = [res["projector"] for res in test_results]
             class_labels = [res["class_label"] for res in test_results]
             anomaly_labels = [res["anomaly_label"] for res in test_results]
 
             save_dir = self.model_utils.get_save_dir()
             os.makedirs(f"{save_dir}/umap", exist_ok=True)
             enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
+            proj_umap_path = f"{save_dir}/umap/umap_projector_epoch{epoch}.png"
             os.makedirs(f"{save_dir}/pca", exist_ok=True)
             enc_pca_path = f"{save_dir}/pca/pca_encoder_epoch{epoch}.png"
 
             enc_np = np.stack(enc_list, axis=0)
+            proj_np = np.stack(proj_list, axis=0)
             class_np = np.array(class_labels)
             anomaly_np = np.array(anomaly_labels)
 
             self.umap.plot_umap(
                 save_path=enc_umap_path,
                 features=enc_np,
+                class_labels=class_np,
+                anomaly_labels=anomaly_np,
+                center=None,
+                radius=None,
+                boundary_samples=None
+            )
+            self.umap.plot_umap(
+                save_path=proj_umap_path,
+                features=proj_np,
                 class_labels=class_np,
                 anomaly_labels=anomaly_np,
                 center=None,

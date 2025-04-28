@@ -7,12 +7,12 @@ seed: 42
 # path
 model:
   data_name: dongjak
-  model_name: resnet_ae
-  trainer: resnet_ae_trainer.py
-  trainer_fn: ResNetAETrainer
-  evaluator: resnet_ae_evaluator.py
-  evaluator_fn: ResNetAEEvaluator
-  version: 2.0
+  model_name: resnet_sim_ae
+  trainer: resnet_sim_ae_trainer.py
+  trainer_fn: ResSimAETrainer
+  evaluator: resnet_sim_ae_evaluator.py
+  evaluator_fn: ResSimAEEvaluator
+  version: 1.1
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -46,7 +46,7 @@ save_every: 1
 
 optimizer:
   type: adam
-  learning_rate: 5e-3
+  learning_rate: 1e-4
   weight_decay: 1e-4
   momentum: 0.9
 
@@ -94,12 +94,12 @@ resnet_ae:
   channels: 3
   height: 64
   width: 64
-  enc_freeze: True
-  enc_latent_dim: 2048
+  enc_freeze: False
+  enc_latent_dim: 
   dec_latent_dim: 2048
   dec_hidden_dims: [512, 256, 128]
   dropout: 0.0
-  use_batch_norm: True
+  use_batch_norm: False
 
 # tcn parameters
 tcn:
@@ -115,11 +115,11 @@ tcn:
 
 # simsiam parameters
 sim:
-  in_dim: 64
-  proj_hidden_dim: 32
-  proj_out_dim: 32
-  pred_hidden_dim: 16
-  pred_out_dim: 32
+  in_dim: 
+  proj_hidden_dim: 512
+  proj_out_dim: 512
+  pred_hidden_dim: 256
+  pred_out_dim: 512
 
 # deepSVDD parameters
 svdd:
