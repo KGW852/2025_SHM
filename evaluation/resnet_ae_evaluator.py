@@ -32,7 +32,7 @@ class ResNetAEEvaluator:
             channels=cfg["resnet_ae"].get("channels", 3),
             height=cfg["resnet_ae"].get("height"),
             width=cfg["resnet_ae"].get("width"),
-            freeze=cfg["resnet_ae"].get("freeze", True),
+            enc_freeze=cfg["resnet_ae"].get("enc_freeze", True),
             dec_latent_dim=cfg["resnet_ae"].get("dec_latent_dim", 2048),
             dec_hidden_dims=cfg["resnet_ae"].get("dec_hidden_dims"),
             dropout=cfg["resnet_ae"].get("dropout", 0.0),

@@ -125,23 +125,34 @@ class ResNet50Encoder(nn.Module):
         # Load pretrained ResNet50
         resnet = models.resnet50(weights='DEFAULT')
         
-        # Remove the final fully connected layer for feature extraction
-        self.features = nn.Sequential(*list(resnet.children())[:-1])
+        # Define layers
+        self.conv1 = resnet.conv1
+        self.bn1 = resnet.bn1
+        self.relu = resnet.relu
+        self.maxpool = resnet.maxpool
+        self.layer1 = resnet.layer1
+        self.layer2 = resnet.layer2
+        self.layer3 = resnet.layer3
+        self.layer4 = resnet.layer4
+        self.avgpool = resnet.avgpool
         
-        # Freeze weights if specified
-        if freeze:
-            for param in self.features.parameters():
-                param.requires_grad = False
-            self.features.eval()
-        
-        # Store ResNet50 feature dimension
         self.feature_dim = resnet.fc.in_features  # 2048
         
-        # Add linear layer to adjust output dimension if specified
         if latent_dim is not None:
             self.fc = nn.Linear(self.feature_dim, latent_dim)
         else:
             self.fc = None
+
+        if freeze:
+            # Freeze all parameters
+            for param in self.parameters():
+                param.requires_grad = False
+            self.eval()
+        else:
+            # Make all parameters trainable
+            for param in self.parameters():
+                param.requires_grad = True
+            # When model.train() is called, all BN layers will be in train mode
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -151,11 +162,16 @@ class ResNet50Encoder(nn.Module):
         Returns:
             torch.Tensor: Feature tensor of shape (batch_size, latent_dim) or (batch_size, 2048)
         """
-        # Extract features using ResNet50
-        x = self.features(x)  # Shape: (batch_size, 2048, 1, 1)
-        x = x.view(x.size(0), -1)  # Shape: (batch_size, 2048)
-        
-        # Apply linear layer if specified
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
         if self.fc is not None:
-            x = self.fc(x)  # Shape: (batch_size, latent_dim)
+            x = self.fc(x)
         return x

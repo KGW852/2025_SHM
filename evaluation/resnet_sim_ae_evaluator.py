@@ -32,7 +32,7 @@ class ResSimAEEvaluator:
             channels=cfg["resnet_ae"].get("channels", 3),
             height=cfg["resnet_ae"].get("height"),
             width=cfg["resnet_ae"].get("width"),
-            freeze=cfg["resnet_ae"].get("freeze", True),
+            enc_freeze=cfg["resnet_ae"].get("enc_freeze", True),
             dec_latent_dim=cfg["resnet_ae"].get("dec_latent_dim", 2048),
             dec_hidden_dims=cfg["resnet_ae"].get("dec_hidden_dims"),
             dropout=cfg["resnet_ae"].get("dropout", 0.0),
@@ -207,6 +207,7 @@ class ResSimAEEvaluator:
                 self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
+                self.mlflow_logger.log_artifact(proj_umap_path, artifact_path="umap")
                 self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
 
         if self.mlflow_logger:

@@ -11,7 +11,7 @@ class ResNetSimAE(nn.Module):
                  channels: int = 3,
                  height: int = None,
                  width: int = None,
-                 freeze: bool = False,
+                 enc_freeze: bool = False,
                  dec_latent_dim: int = 2048,
                  dec_hidden_dims: list = None,
                  dropout: float = 0.0,
@@ -26,7 +26,7 @@ class ResNetSimAE(nn.Module):
             raise ValueError("dec_hidden_dims must be provided as a list")
         if height is None or width is None:
             raise ValueError("height and width must be specified")
-        self.encoder = ResNet50Encoder(latent_dim=dec_latent_dim, freeze=freeze)
+        self.encoder = ResNet50Encoder(latent_dim=dec_latent_dim, freeze=enc_freeze)
         self.simsiam = SimSiam(in_dim=dec_latent_dim,
                                proj_hidden_dim=proj_hidden_dim,
                                proj_out_dim=proj_out_dim,

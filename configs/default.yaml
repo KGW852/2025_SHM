@@ -12,13 +12,13 @@ model:
   trainer_fn: ResSimAETrainer
   evaluator: resnet_sim_ae_evaluator.py
   evaluator_fn: ResSimAEEvaluator
-  version: 1.1
+  version: 1.5
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
@@ -40,9 +40,9 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 5
+epochs: 30
 log_every: 1
-save_every: 1
+save_every: 5
 
 optimizer:
   type: adam
@@ -74,7 +74,7 @@ mlflow:
 ae:
   recon_type: mae
   reduction: mean
-  simsiam_lamda: 1.0
+  simsiam_lamda: 1.5
   svdd_lambda: 1.0
 
 # mlp parameters
@@ -99,7 +99,7 @@ resnet_ae:
   dec_latent_dim: 2048
   dec_hidden_dims: [512, 256, 128]
   dropout: 0.0
-  use_batch_norm: False
+  use_batch_norm: True
 
 # tcn parameters
 tcn:
@@ -133,8 +133,8 @@ svdd:
 
 # umap parameters
 umap:
-  n_neighbors: 15
-  min_dist: 0.0
+  n_neighbors: 250
+  min_dist: 0.1
   n_components: 2
   random_state: 42
   metric: euclidean
