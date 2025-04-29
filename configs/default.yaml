@@ -7,18 +7,18 @@ seed: 42
 # path
 model:
   data_name: dongjak
-  model_name: resnet_sim_ae
-  trainer: resnet_sim_ae_trainer.py
-  trainer_fn: ResSimAETrainer
-  evaluator: resnet_sim_ae_evaluator.py
-  evaluator_fn: ResSimAEEvaluator
-  version: 1.5
+  model_name: resnet_sim_svdd_ae
+  trainer: resnet_sim_svdd_ae_trainer.py
+  trainer_fn: ResSimSVDDAETrainer
+  evaluator: resnet_sim_svdd_ae_evaluator.py
+  evaluator_fn: ResSimSVDDAEEvaluator
+  version: 1.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
 eval:  # not used
@@ -75,7 +75,7 @@ ae:
   recon_type: mae
   reduction: mean
   simsiam_lamda: 1.5
-  svdd_lambda: 1.0
+  svdd_lamda: 1.0
 
 # mlp parameters
 mlp_ae:
@@ -123,12 +123,12 @@ sim:
 
 # deepSVDD parameters
 svdd:
-  in_dim: 32
-  hidden_dims: [16]
-  latent_dim: 16
+  in_dim: 512
+  hidden_dims: [256]
+  latent_dim: 256
   dropout: 0.1
   use_batch_norm: True
-  nu: 0.05
+  nu: 0.01
   reduction: mean  # mean, sum
 
 # umap parameters
