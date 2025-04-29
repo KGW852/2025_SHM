@@ -18,7 +18,7 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
