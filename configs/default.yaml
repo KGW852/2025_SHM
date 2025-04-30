@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 1.0
+  version: 1.1
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -40,7 +40,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 30
+epochs: 10
 log_every: 1
 save_every: 5
 

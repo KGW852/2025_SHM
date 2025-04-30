@@ -50,7 +50,9 @@ class DeepSVDD(nn.Module):
         self.latent_dim = latent_dim
 
         # Register the center vector as a buffer
-        self.register_buffer("center", torch.zeros(self.latent_dim))
+        #self.register_buffer("center", torch.zeros(self.latent_dim))
+        # center vector as learnable parameter
+        self.center = nn.Parameter(torch.zeros(self.latent_dim), requires_grad=True)
 
         # Define the radius(r) of the SVDD hypersphere as a learnable parameter
         self.radius = nn.Parameter(torch.tensor(1.0), requires_grad=True)
