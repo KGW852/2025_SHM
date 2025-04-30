@@ -46,6 +46,8 @@ class ResSimSVDDAEEvaluator:
             svdd_in_dim=cfg["svdd"].get("in_dim", 512),
             svdd_hidden_dims=cfg["svdd"].get("hidden_dims"),
             svdd_latent_dim=cfg["svdd"].get("latent_dim", 256),
+            svdd_center_param=cfg["svdd"].get("center_param", False),
+            svdd_radius_param=cfg["svdd"].get("radius_param", False),
             svdd_dropout=cfg["svdd"].get("dropout", 0.1),
             svdd_use_batchnorm=cfg["svdd"].get("use_batch_norm", False)
         ).to(self.device)

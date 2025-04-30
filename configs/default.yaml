@@ -12,13 +12,13 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 1.1
+  version: 1.2
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
 eval:  # not used
@@ -126,6 +126,8 @@ svdd:
   in_dim: 512
   hidden_dims: [256]
   latent_dim: 256
+  center_param: False
+  radius_param: True
   dropout: 0.1
   use_batch_norm: True
   nu: 0.01

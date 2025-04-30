@@ -28,6 +28,8 @@ class ResNetSimSVDDAE(nn.Module):
                  svdd_in_dim: int = 512,
                  svdd_hidden_dims: list = [256],
                  svdd_latent_dim: int = 256,
+                 svdd_center_param: bool = False,
+                 svdd_radius_param: bool = False,
                  svdd_dropout: float = 0.0,
                  svdd_use_batchnorm: bool = False
                  ):
@@ -64,7 +66,9 @@ class ResNetSimSVDDAE(nn.Module):
         # DeepSVDD
         self.svdd = DeepSVDD(
             backbone=self.svdd_backbone,
-            latent_dim=svdd_latent_dim)
+            latent_dim=svdd_latent_dim,
+            center_param=svdd_center_param,
+            radius_param=svdd_radius_param)
 
     def forward(self, x_s: torch.Tensor, x_t: torch.Tensor):
         e_s = self.encoder(x_s)

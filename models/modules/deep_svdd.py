@@ -43,19 +43,24 @@ class DeepSVDD(nn.Module):
     Args:
         backbone (nn.Module): Feature extraction (encoding) model (e.g., SimSiam encoder + projector)
         latent_dim (int): Dimensionality of the feature (latent) space
+        center_param (bool): If True, center is a learnable parameter; else, it's a buffer
     """
-    def __init__(self, backbone: nn.Module, latent_dim: int):
+    def __init__(self, backbone: nn.Module, latent_dim: int, center_param: bool = False, radius_param: bool = False):
         super(DeepSVDD, self).__init__()
         self.backbone = backbone
         self.latent_dim = latent_dim
+        self.center_param = center_param
+        self.radius_param = radius_param
 
-        # Register the center vector as a buffer
-        #self.register_buffer("center", torch.zeros(self.latent_dim))
-        # center vector as learnable parameter
-        self.center = nn.Parameter(torch.zeros(self.latent_dim), requires_grad=True)
+        if self.center_param:  # define center as a learnable parameter
+            self.center = nn.Parameter(torch.zeros(self.latent_dim), requires_grad=True)
+        else:  # register center as a buffer
+            self.register_buffer('center', torch.zeros(self.latent_dim))
 
-        # Define the radius(r) of the SVDD hypersphere as a learnable parameter
-        self.radius = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+        if self.radius_param:  # Define radius as a learnable parameter
+            self.radius = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+        else:  # Register radius as a buffer
+            self.register_buffer('radius', torch.tensor(1.0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.backbone(x)  # (B, latent_dim)

@@ -45,6 +45,8 @@ class SimSVDDAETrainer:
             svdd_in_dim=cfg["svdd"]["in_dim"],
             svdd_hidden_dims=cfg["svdd"]["hidden_dims"],
             svdd_latent_dim=cfg["svdd"]["latent_dim"],
+            svdd_center_param=cfg["svdd"]["center_param"],
+            svdd_radius_param=cfg["svdd"]["radius_param"],
             svdd_dropout=cfg["svdd"]["dropout"],
             svdd_use_batchnorm=cfg["svdd"]["use_batch_norm"]
         ).to(self.device)
@@ -386,9 +388,13 @@ class SimSVDDAETrainer:
         
         last_saved_epoch = None
 
-        self.init_center(train_loader, eps=1e-5)
+        if self.model.svdd.center_param:
+            self.init_center(train_loader, eps=1e-5)
 
         for epoch in range(self.epochs + 1):
+            if not self.model.svdd.center_param:
+                self.init_center(train_loader, eps=1e-5)
+                
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
             (train_avg, train_recon, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t) = train_loss_tuple
 
