@@ -95,7 +95,7 @@ class SimSVDDAETrainer:
         c = torch.zeros(latent_dim, device=self.device)
         n_samples = 0
 
-        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Epoch [Init/{self.epochs}] Center", leave=False)
+        pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Epoch [Init/{self.epochs}] Center", leave=True)
         with torch.no_grad():
             for batch_idx, data in pbar:
                 (x_s, _, _), (x_t, _, _) = data  # x_s, x_t: (B, C, T)
@@ -103,7 +103,7 @@ class SimSVDDAETrainer:
                 x_t = x_t.to(self.device)
 
                 # forward
-                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, dist_s, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
                 c += torch.sum(feat_s, dim=0)
                 n_samples += feat_s.size(0)
 
@@ -113,7 +113,7 @@ class SimSVDDAETrainer:
         mask = torch.abs(c) < eps
         c[mask] = 0.0
         self.model.svdd.center.data = c
-        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f})")
+        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f}, value={c[:5]})")
 
     def train_epoch(self, train_loader, epoch: int):
         do_train = (epoch > 0)
@@ -393,8 +393,9 @@ class SimSVDDAETrainer:
 
         for epoch in range(self.epochs + 1):
             if not self.model.svdd.center_param:
+                print(f"Epoch {epoch}: Initializing center")
                 self.init_center(train_loader, eps=1e-5)
-                
+
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # train
             (train_avg, train_recon, train_sim, train_svdd, train_svdd_s, train_svdd_t, train_dist_s, train_dist_t) = train_loss_tuple
 

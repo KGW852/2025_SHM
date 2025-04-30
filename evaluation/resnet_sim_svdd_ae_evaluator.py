@@ -218,7 +218,8 @@ class ResSimSVDDAEEvaluator:
 
                 x = torch.tensor(src_res["x"]).unsqueeze(0).to(self.device)
                 x_recon = torch.tensor(src_res["x_recon"]).unsqueeze(0).to(self.device)
-                score_tensor = self.anomaly_score.anomaly_score(x_recon=x_recon, x=x)
+                distance = torch.tensor(src_res["distance"]).unsqueeze(0).to(self.device)
+                score_tensor = self.anomaly_score.anomaly_score(distance=distance)
 
                 file_names.append(file_name)
                 y_true.append(anomaly_label)

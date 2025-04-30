@@ -44,6 +44,8 @@ class ResSimSVDDAETrainer:
             svdd_in_dim=cfg["svdd"].get("in_dim", 512),
             svdd_hidden_dims=cfg["svdd"].get("hidden_dims"),
             svdd_latent_dim=cfg["svdd"].get("latent_dim", 256),
+            svdd_center_param=cfg["svdd"].get("center_param", False),
+            svdd_radius_param=cfg["svdd"].get("radius_param", False),
             svdd_dropout=cfg["svdd"].get("dropout", 0.1),
             svdd_use_batchnorm=cfg["svdd"].get("use_batch_norm", False)
         ).to(self.device)
@@ -101,8 +103,8 @@ class ResSimSVDDAETrainer:
 
                 # forward
                 (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
-                c += torch.sum(feat_s, dim=0)
-                n_samples += feat_s.size(0)
+                c += torch.sum(feat_s, dim=0) + torch.sum(feat_t, dim=0)
+                n_samples += feat_s.size(0) + feat_t.size(0)
 
         c /= n_samples
 
@@ -110,7 +112,7 @@ class ResSimSVDDAETrainer:
         mask = torch.abs(c) < eps
         c[mask] = 0.0
         self.model.svdd.center.data = c
-        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f})")
+        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f}, value={c[:5]})")
 
     def train_epoch(self, train_loader, epoch: int):
         """
@@ -370,10 +372,6 @@ class ResSimSVDDAETrainer:
 
         print(f"Checkpoint saved: {ckpt_path}")
 
-        # Upload checkpoint to MLflow
-        #if self.mlflow_logger is not None:
-            #self.mlflow_logger.log_artifact(ckpt_path, artifact_path="checkpoints")
-
     def run(self, train_loader, eval_loader=None, log_params_dict=None):
         """
         Run the training loop.
@@ -389,9 +387,13 @@ class ResSimSVDDAETrainer:
 
         last_saved_epoch = None
 
-        self.init_center(train_loader, eps=1e-5)
+        if self.model.svdd.center_param:
+            self.init_center(train_loader, eps=1e-5)
 
         for epoch in range(self.epochs + 1):
+            if not self.model.svdd.center_param:  # init_center
+                self.init_center(train_loader, eps=1e-5)
+
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # Train
             (train_avg, train_recon, train_sim, train_svdd) = train_loss_tuple
 

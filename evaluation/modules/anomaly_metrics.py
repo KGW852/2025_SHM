@@ -43,14 +43,14 @@ class AnomalyScore(nn.Module):
 
         return simsiam_score
     
-    def distance_anomaly_score(self, feature: torch.Tensor, center: torch.Tensor):
+    def distance_anomaly_score(self, distance: torch.Tensor):
         """
         SVDD distance score per-sample
         """
-        distance_score = torch.sum((feature - center) ** 2, dim=1)
+        distance_score = distance
         return distance_score
 
-    def distribution_anomaly_score(self):
+    def distribution_anomaly_score(self, features: torch.Tensor, center: torch.Tensor):
         pass
 
     def reconloss_anomaly_score(self, x_recon, x):
@@ -71,11 +71,10 @@ class AnomalyScore(nn.Module):
             anomaly_score = self.simsiam_anomaly_score(z1, p1, z2, p2)
 
         elif self.method == 'distance':
-            feature = kwargs.get('feature', None)
-            center = kwargs.get('center', None)
-            if feature is None or center is None:
-                raise ValueError("For 'distance' method, please provide 'feature' and 'center'.")
-            anomaly_score = self.distance_anomaly_score(feature, center)
+            distance = kwargs.get('distance', None)
+            if distance is None:
+                raise ValueError("For 'distance' method, please provide 'distance'.")
+            anomaly_score = self.distance_anomaly_score(distance)
 
         elif self.method == 'distribution':
             pass

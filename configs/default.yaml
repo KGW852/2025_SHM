@@ -40,7 +40,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 10
+epochs: 30
 log_every: 1
 save_every: 5
 
@@ -125,7 +125,7 @@ sim:
 svdd:
   in_dim: 512
   hidden_dims: [256]
-  latent_dim: 256
+  latent_dim: 512
   center_param: False
   radius_param: True
   dropout: 0.1
@@ -150,7 +150,7 @@ pca:
 
 # anomaly score metric
 anomaly:
-  method: reconloss  # simsiam, distance, distribution, reconloss
+  method: distance  # simsiam, distance, distribution, reconloss
   recon_type: mse
   thresholded: 
   distribution_percentile: 99

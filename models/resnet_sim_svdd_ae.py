@@ -65,7 +65,7 @@ class ResNetSimSVDDAE(nn.Module):
         
         # DeepSVDD
         self.svdd = DeepSVDD(
-            backbone=self.svdd_backbone,
+            backbone=nn.Identity(),
             latent_dim=svdd_latent_dim,
             center_param=svdd_center_param,
             radius_param=svdd_radius_param)
