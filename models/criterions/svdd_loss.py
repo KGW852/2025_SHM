@@ -13,6 +13,7 @@ class DeepSVDDLoss(nn.Module):
     """
     def __init__(self, nu: float = 0.1, reduction: str = 'mean'):
         super().__init__()
+        assert reduction in ['mean', 'sum', 'simple'], f"Invalid reduction mode: {reduction}"
         self.nu = nu
         self.reduction = reduction
 
@@ -26,18 +27,16 @@ class DeepSVDDLoss(nn.Module):
             torch.Tensor: deep svdd loss (scalar)
         """
         dist_sq = torch.sum((features - center) ** 2, dim=1)  # [batch_size]
-
-        # hinge: max(0, dist_sq - R^2)
-        dist_diff = dist_sq - radius.pow(2)
-
-        # Ruff et al. (ICML 2018): Cumulative form, L = R^2 + (1 / (nu * N)) * sum( max(0, dist_sq - R^2) )
-        if self.reduction == 'mean':
+        
+        if self.reduction == 'simple':
+            loss = torch.mean(dist_sq)
+        else:  # Ruff et al. (ICML 2018): Cumulative form, L = R^2 + (1 / (nu * N)) * sum( max(0, dist_sq - R^2) )
+            dist_diff = dist_sq - radius.pow(2)
             loss_term = torch.clamp(dist_diff, min=0)
-            loss = radius.pow(2) + (1.0 / (self.nu * features.size(0))) * torch.sum(loss_term)
-        elif self.reduction == 'sum':
-            loss_term = torch.clamp(dist_diff, min=0)
-            loss = radius.pow(2) + (1.0 / self.nu) * torch.sum(loss_term)
-        else:
-            raise ValueError(f"Not supported reduction mode: {self.reduction}")
-
+            if self.reduction == 'mean':
+                loss = radius.pow(2) + (1.0 / (self.nu * features.size(0))) * torch.sum(loss_term)
+            elif self.reduction == 'sum':
+                loss = radius.pow(2) + (1.0 / self.nu) * torch.sum(loss_term)
+            else:
+                raise ValueError(f"Not supported reduction mode: {self.reduction}")
         return loss
