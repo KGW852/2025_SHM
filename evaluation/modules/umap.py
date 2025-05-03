@@ -6,7 +6,7 @@ import umap.umap_ as umap
 import matplotlib.pyplot as plt
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class UMAPPlot:
@@ -23,6 +23,7 @@ class UMAPPlot:
             metric: Distance metric to use in UMAP. (default: 'None')
             **umap_kwargs: Additional keyword arguments to pass to the umap.UMAP constructor.
             boundary_samples: Number of points to sample on the surface of a high-dimensional hypersphere
+            normalize: 
         """
         # UMAP parameters
         umap_params = cfg.get("umap", {})
@@ -46,16 +47,43 @@ class UMAPPlot:
 
         # save the UMAP instance for later use (assigned during fit_transform)
         self.reducer = None
+        self.norm_min: Optional[np.ndarray] = None
+        self.norm_max: Optional[np.ndarray] = None
+        self.fix_reducer  = umap_params.get("fix_reducer", False)
+        self.normalize = umap_params.get("normalize", True)
+        self.update_stats = umap_params.get("update_stats", False)
 
+    def _fit_transform(self, features: np.ndarray) -> np.ndarray:
+        if self.fix_reducer:
+            if self.reducer is None:
+                embedded = self.umap.fit_transform(features)
+                self.reducer = self.umap
+            else:
+                embedded = self.reducer.transform(features)
+        else:
+            embedded = self.umap.fit_transform(features)
+            self.reducer = self.umap
+        return embedded
+    
+    def _minmax_scale(self, arr: np.ndarray) -> np.ndarray:
+        update_stats = self.update_stats
+        if self.norm_min is None or self.norm_max is None or update_stats:
+            self.norm_min = arr.min(axis=0, keepdims=True)
+            self.norm_max = arr.max(axis=0, keepdims=True)
+
+        scaled = (arr - self.norm_min) / (self.norm_max - self.norm_min + 1e-8)
+        return np.clip(scaled, 0.0, 1.0)
+    
     def plot_umap(self, save_path, features, class_labels, anomaly_labels, 
                   center: Optional[torch.Tensor], radius: Optional[float], boundary_samples: Optional[int]):
         """
         Combine embeddings from multiple domains and perform UMAP dimensionality reduction.
         """
-        embedded = self.umap.fit_transform(features)  # (N, n_components)
+        embedded = self._fit_transform(features)  # (N, n_components)
 
-        # save reducer/results
-        self.reducer = self.umap
+        # normalize the embeddings to fit in the [0, 1] square
+        if self.normalize:
+            embedded = self._minmax_scale(embedded)
         
         # plot per label
         unique_labels = np.unique(class_labels)
@@ -122,6 +150,8 @@ class UMAPPlot:
         plt.title(f"UMAP ({self.metric})")
         plt.xlabel("UMAP Dim 1")
         plt.ylabel("UMAP Dim 2")
+        plt.xlim(0, 1) if self.normalize else None
+        plt.ylim(0, 1) if self.normalize else None
         plt.grid(True)
         plt.legend()
         plt.tight_layout()

@@ -36,8 +36,7 @@ class SimSiamPredictor(nn.Module):
         return self.mlp(x)
 
 class SimSiam(nn.Module):
-    def __init__(self, in_dim=1024, proj_hidden_dim=512, proj_out_dim=512,
-                 pred_hidden_dim=256, pred_out_dim=512):
+    def __init__(self, in_dim, proj_hidden_dim, proj_out_dim, pred_hidden_dim, pred_out_dim):
         super(SimSiam, self).__init__()
         self.projector = SimSiamProjector(
             in_dim=in_dim,

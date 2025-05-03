@@ -10,7 +10,7 @@ from models.criterions.svdd_loss import DeepSVDDLoss
 
 from utils.model_utils import ModelUtils
 from utils.logger import MLFlowLogger
-from .tools import Optimizer, Scheduler, EarlyStopper
+from .tools import Optimizer, Scheduler, EarlyStopper, WarmUp
 
 
 class ResSimSVDDAETrainer:
@@ -68,6 +68,7 @@ class ResSimSVDDAETrainer:
         self.optimizer = Optimizer(self.cfg).get_optimizer(self.model.parameters())
         self.scheduler = Scheduler(self.cfg).get_scheduler(self.optimizer)
         self.early_stopper = EarlyStopper(self.cfg).get_early_stopper()
+        self.warmup = WarmUp(self.cfg)
 
         # utils: model manage, mlflow
         self.model_utils = ModelUtils(self.cfg)
@@ -123,6 +124,7 @@ class ResSimSVDDAETrainer:
             self.model.train()
         else:
             self.model.eval()
+        warmup = self.warmup.get_scale(epoch=epoch)
 
         total_loss = 0.0
         recons_loss = 0.0
@@ -162,7 +164,7 @@ class ResSimSVDDAETrainer:
             svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
             svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
-            loss = recon_loss + self.simsiam_lamda * sim_loss + self.svdd_lamda * svdd_loss
+            loss = recon_loss + self.simsiam_lamda * sim_loss + warmup * self.svdd_lamda * svdd_loss
 
             # Backpropagation
             if do_train:
@@ -248,6 +250,8 @@ class ResSimSVDDAETrainer:
         Evaluate the model for one epoch.
         """
         self.model.eval()
+        warmup = self.warmup.get_scale(epoch=epoch)
+
         total_loss = 0.0
         recons_loss = 0.0
         simsiam_loss = 0.0
@@ -285,7 +289,7 @@ class ResSimSVDDAETrainer:
                 svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
                 svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
-                loss = recon_loss + self.simsiam_lamda * sim_loss + self.svdd_lamda * svdd_loss
+                loss = recon_loss + self.simsiam_lamda * sim_loss + warmup * self.svdd_lamda * svdd_loss
 
                 # Accumulate losses
                 total_loss += loss.item()

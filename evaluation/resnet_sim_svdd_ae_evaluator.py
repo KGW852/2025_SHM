@@ -197,8 +197,8 @@ class ResSimSVDDAEEvaluator:
                 class_labels=class_np,
                 anomaly_labels=anomaly_np,
                 center=self.center,
-                radius=self.radius,
-                boundary_samples=self.umap.boundary_samples
+                radius=None,
+                boundary_samples=None
             )
             self.pca.plot_pca(
                 save_path=enc_pca_path,

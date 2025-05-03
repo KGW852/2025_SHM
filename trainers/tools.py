@@ -151,4 +151,19 @@ class EarlyStopper:
         baseline = early_cfg.get("baseline", None)
 
         return EarlyStopperMetric(patience=patience, mode=mode, min_delta=min_delta, baseline=baseline)
-    
+
+class WarmUp:
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+    def get_scale(self, epoch):
+        warmup_cfg = self.cfg.get("ae", None)
+        start = warmup_cfg.get("warmup_start", 10)
+        end = warmup_cfg.get("warmup_end", 15)
+
+        if epoch < start:
+            return 0.0
+        elif epoch > end:
+            return 1.0
+        else:
+            return (epoch - start + 1) / (end - start + 1)

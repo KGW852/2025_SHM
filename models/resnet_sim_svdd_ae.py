@@ -7,7 +7,7 @@ from .modules.simsiam import SimSiam
 from .modules.deep_svdd import SVDDBackbone, DeepSVDD
 from .modules.decoder import ImageDecoder
 
- 
+
 class ResNetSimSVDDAE(nn.Module):
     def __init__(self,
                  # AE
