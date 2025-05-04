@@ -76,8 +76,8 @@ class ResNetSimSVDDAE(nn.Module):
 
         z_s, p_s, z_t, p_t = self.simsiam(e_s, e_t)
 
-        feat_s, dist_s = self.svdd(z_s)  # (B, svdd_latent_dim), (B,)
-        feat_t, dist_t = self.svdd(z_t)
+        feat_s, dist_s = self.svdd(e_s)  # (B, svdd_latent_dim), (B,)
+        feat_t, dist_t = self.svdd(e_t)
 
         x_s_recon = self.decoder(e_s)
         x_t_recon = self.decoder(e_t)

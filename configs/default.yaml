@@ -12,31 +12,31 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 1.5
+  version: 1.6
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: False
+  use: True
 
 # evaluator step parameters
 eval:  # not used
   use: False
   epoch: [0, 2]  # [-1]: all
 test:
-  use: True
-  epoch: [25]  # [-1]: all
+  use: False
+  epoch: [-1]  # [-1]: all
 
 # data parameters
 match_strategy: random  # random, sequential
-img_height: 64
-img_width: 64
+img_height: 224
+img_width: 224
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
-batch_size: 16
-n_workers: 16
+batch_size: 4
+n_workers: 8
 
 # train parameters
 device: cuda
@@ -74,10 +74,10 @@ mlflow:
 ae:
   recon_type: mae
   reduction: mean
-  simsiam_lamda: 1.5
-  svdd_lamda: 0.5
-  warmup_start: 16
-  warmup_end: 25
+  simsiam_lamda: 1.0
+  svdd_lamda: 1.0
+  warmup_start: 0
+  warmup_end: 9
 
 # mlp model parameters
 mlp_ae:
@@ -94,8 +94,8 @@ mlp_ae:
 # resnet_ae model parameters
 resnet_ae:
   channels: 3
-  height: 64
-  width: 64
+  height: 224
+  width: 224
   enc_freeze: False
   enc_latent_dim: 
   dec_latent_dim: 2048

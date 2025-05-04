@@ -104,8 +104,8 @@ class ResSimSVDDAETrainer:
 
                 # forward
                 (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
-                c += torch.sum(feat_s, dim=0) + torch.sum(feat_t, dim=0)
-                n_samples += feat_s.size(0) + feat_t.size(0)
+                c += torch.sum(feat_s, dim=0)
+                n_samples += feat_s.size(0)
 
         c /= n_samples
 
