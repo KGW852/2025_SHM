@@ -182,7 +182,7 @@ class ResSimSVDDAETrainer:
             deep_svdd_loss_t += svdd_loss_t.item()
 
             # mlflow log: global step
-            if self.mlflow_logger is not None and batch_idx % 67 == 0:
+            if self.mlflow_logger is not None and batch_idx % 5 == 0:
                 global_step = epoch * len(train_loader) + batch_idx
                 self.mlflow_logger.log_metrics({
                     "train_loss_step": loss.item(),

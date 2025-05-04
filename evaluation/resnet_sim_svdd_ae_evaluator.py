@@ -154,22 +154,20 @@ class ResSimSVDDAEEvaluator:
 
             # Latent space visualization
             enc_list = [res["encoder"] for res in test_results]
-            proj_list = [res["projector"] for res in test_results]
-            feat_list = [res["feature"] for res in test_results]
             class_labels = [res["class_label"] for res in test_results]
             anomaly_labels = [res["anomaly_label"] for res in test_results]
 
             save_dir = self.model_utils.get_save_dir()
             os.makedirs(f"{save_dir}/umap", exist_ok=True)
-            enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
-            proj_umap_path = f"{save_dir}/umap/umap_projector_epoch{epoch}.png"
-            feat_umap_path = f"{save_dir}/umap/umap_feature_epoch{epoch}.png"
+            #enc_umap_path = f"{save_dir}/umap/umap_s1(18)_encoder_epoch{epoch}.png"
+            #enc_umap_path = f"{save_dir}/umap/umap_s2(18)_encoder_epoch{epoch}.png"
+            enc_umap_path = f"{save_dir}/umap/umap_all(18)_encoder_epoch{epoch}.png"
             os.makedirs(f"{save_dir}/pca", exist_ok=True)
-            enc_pca_path = f"{save_dir}/pca/pca_encoder_epoch{epoch}.png"
+            #enc_pca_path = f"{save_dir}/pca/pca_s1(18)_encoder_epoch{epoch}.png"
+            #enc_pca_path = f"{save_dir}/pca/pca_s2(18)_encoder_epoch{epoch}.png"
+            enc_pca_path = f"{save_dir}/pca/pca_all(18)_encoder_epoch{epoch}.png"
 
             enc_np = np.stack(enc_list, axis=0)
-            proj_np = np.stack(proj_list, axis=0)
-            feat_np = np.stack(feat_list, axis=0)
             class_np = np.array(class_labels)
             anomaly_np = np.array(anomaly_labels)
 
@@ -179,24 +177,6 @@ class ResSimSVDDAEEvaluator:
                 class_labels=class_np,
                 anomaly_labels=anomaly_np,
                 center=None,
-                radius=None,
-                boundary_samples=None
-            )
-            self.umap.plot_umap(
-                save_path=proj_umap_path,
-                features=proj_np,
-                class_labels=class_np,
-                anomaly_labels=anomaly_np,
-                center=None,
-                radius=None,
-                boundary_samples=None
-            )
-            self.umap.plot_umap(
-                save_path=feat_umap_path,
-                features=feat_np,
-                class_labels=class_np,
-                anomaly_labels=anomaly_np,
-                center=self.center,
                 radius=None,
                 boundary_samples=None
             )
@@ -226,8 +206,12 @@ class ResSimSVDDAEEvaluator:
                 y_scores.append(score_tensor.item())
 
             os.makedirs(f"{save_dir}/metric", exist_ok=True)
-            anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}_{self.method}.csv"
-            anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{epoch}_{self.method}.csv"
+            #anomaly_data_path = f"{save_dir}/metric/anomaly_s2(18)_scores_epoch{epoch}_{self.method}.csv"
+            #anomaly_data_path = f"{save_dir}/metric/anomaly_s1(18)_scores_epoch{epoch}_{self.method}.csv"
+            anomaly_data_path = f"{save_dir}/metric/anomaly_all(18)_scores_epoch{epoch}_{self.method}.csv"
+            #anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
+            #anomaly_metric_path = f"{save_dir}/metric/anomaly_s1(18)_metric_epoch{epoch}_{self.method}.csv"
+            anomaly_metric_path = f"{save_dir}/metric/anomaly_all(18)_metric_epoch{epoch}_{self.method}.csv"
 
             anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
             anomaly_dict = anomaly_metric.calc_metric()
@@ -239,8 +223,6 @@ class ResSimSVDDAEEvaluator:
                 self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
-                self.mlflow_logger.log_artifact(proj_umap_path, artifact_path="umap")
-                self.mlflow_logger.log_artifact(feat_umap_path, artifact_path="umap")
                 self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
 
         if self.mlflow_logger:

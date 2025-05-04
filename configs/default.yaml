@@ -18,15 +18,15 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
   use: False
   epoch: [0, 2]  # [-1]: all
 test:
-  use: False
-  epoch: [-1]  # [-1]: all
+  use: True
+  epoch: [25]  # [-1]: all
 
 # data parameters
 match_strategy: random  # random, sequential
@@ -45,16 +45,16 @@ log_every: 1
 save_every: 5
 
 optimizer:
-  type: sgd
-  learning_rate: 5e-3
-  weight_decay: 1e-4
-  momentum: 0.9
+  type: adamw
+  learning_rate: 1e-4
+  weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
+  momentum: 0.9  # sgd, rmsprop
 
 scheduler:  # steplr, multisteplr, exponentiallr, cosineannealinglr
   type: steplr
   step_size: 5
-  gamma: 0.1
-  milestones: [30, 88]
+  gamma: 0.5
+  milestones: [5, 10]
   t_max: 50
   eta_min: 0
 
@@ -75,9 +75,9 @@ ae:
   recon_type: mae
   reduction: mean
   simsiam_lamda: 1.5
-  svdd_lamda: 1.0
-  warmup_start: 10
-  warmup_end: 19
+  svdd_lamda: 0.5
+  warmup_start: 16
+  warmup_end: 25
 
 # mlp model parameters
 mlp_ae:
@@ -100,7 +100,7 @@ resnet_ae:
   enc_latent_dim: 
   dec_latent_dim: 2048
   dec_hidden_dims: [512, 256, 128]
-  dropout: 0.0
+  dropout: 0.1
   use_batch_norm: True
 
 # tcn model parameters
@@ -118,16 +118,16 @@ tcn:
 # simsiam model parameters
 sim:
   in_dim: 
-  proj_hidden_dim: 512
-  proj_out_dim: 512
-  pred_hidden_dim: 256
-  pred_out_dim: 512
+  proj_hidden_dim: 2048
+  proj_out_dim: 2048
+  pred_hidden_dim: 512
+  pred_out_dim: 2048
 
 # deepSVDD model parameters
 svdd:
-  in_dim: 512
+  in_dim: 2048
   hidden_dims: [256]
-  latent_dim: 512
+  latent_dim: 2048
   center_param: False
   radius_param: False
   dropout: 0.1
@@ -137,14 +137,14 @@ svdd:
 
 # umap parameters
 umap:
-  n_neighbors: 250
+  n_neighbors: 15
   min_dist: 0.1
   n_components: 2
   random_state: 42
   metric: euclidean
   boundary_samples: 100
   fix_reducer: False
-  normalize: True
+  normalize: False
   update_stats: True
 
 # pca parameters
