@@ -30,12 +30,12 @@ test:
 
 # data parameters
 match_strategy: random  # random, sequential
-img_height: 128
-img_width: 128
+img_height: 64
+img_width: 64
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
-batch_size: 4
+batch_size: 8
 n_workers: 8
 
 # train parameters
@@ -94,8 +94,8 @@ mlp_ae:
 # resnet_ae model parameters
 resnet_ae:
   channels: 3
-  height: 128
-  width: 128
+  height: 64
+  width: 64
   enc_freeze: False
   enc_latent_dim: 
   dec_latent_dim: 2048
