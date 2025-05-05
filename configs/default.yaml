@@ -94,8 +94,8 @@ mlp_ae:
 # resnet_ae model parameters
 resnet_ae:
   channels: 3
-  height: 224
-  width: 224
+  height: 128
+  width: 128
   enc_freeze: False
   enc_latent_dim: 
   dec_latent_dim: 2048
