@@ -30,8 +30,8 @@ test:
 
 # data parameters
 match_strategy: random  # random, sequential
-img_height: 224
-img_width: 224
+img_height: 128
+img_width: 128
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
