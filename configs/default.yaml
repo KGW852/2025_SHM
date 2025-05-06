@@ -76,8 +76,6 @@ ae:
   reduction: mean
   simsiam_lamda: 1.0
   svdd_lamda: 0.5
-  warmup_start: 10
-  warmup_end: 19
 
 # mlp model parameters
 mlp_ae:
@@ -115,15 +113,17 @@ tcn:
   dropout: 0.0
   use_batch_norm: False
 
-# simsiam model parameters
+# simsiam model & training parameters
 sim:
   in_dim: 
   proj_hidden_dim: 2048
   proj_out_dim: 2048
   pred_hidden_dim: 512
   pred_out_dim: 2048
+  warmup_start: 10
+  warmup_end: 19
 
-# deepSVDD model parameters
+# deepSVDD model & training parameters
 svdd:
   in_dim: 2048
   hidden_dims: [256]
@@ -132,8 +132,10 @@ svdd:
   radius_param: False
   dropout: 0.1
   use_batch_norm: True
-  nu: 0.05
+  nu: 0.01
   reduction: simple  # simple, mean, sum
+  warmup_start: 20
+  warmup_end: 24
 
 # umap parameters
 umap:

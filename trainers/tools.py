@@ -152,12 +152,28 @@ class EarlyStopper:
 
         return EarlyStopperMetric(patience=patience, mode=mode, min_delta=min_delta, baseline=baseline)
 
-class WarmUp:
+class SimWarmUp:
     def __init__(self, cfg):
         self.cfg = cfg
 
     def get_scale(self, epoch):
-        warmup_cfg = self.cfg.get("ae", None)
+        warmup_cfg = self.cfg.get("sim", None)
+        start = warmup_cfg.get("warmup_start", 10)
+        end = warmup_cfg.get("warmup_end", 15)
+
+        if epoch < start:
+            return 0.0
+        elif epoch > end:
+            return 1.0
+        else:
+            return (epoch - start + 1) / (end - start + 1)
+
+class SVDDWarmUp:
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+    def get_scale(self, epoch):
+        warmup_cfg = self.cfg.get("svdd", None)
         start = warmup_cfg.get("warmup_start", 10)
         end = warmup_cfg.get("warmup_end", 15)
 
