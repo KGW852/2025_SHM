@@ -30,8 +30,8 @@ test:
 
 # data parameters
 match_strategy: random  # random, sequential
-img_height: 64
-img_width: 64
+img_height: 224
+img_width: 32
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
@@ -46,7 +46,7 @@ save_every: 5
 
 optimizer:
   type: adamw
-  learning_rate: 1e-4
+  learning_rate: 5e-4
   weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
@@ -72,12 +72,12 @@ mlflow:
 
 # ae training parameters
 ae:
-  recon_type: mae
+  recon_type: mse
   reduction: mean
   simsiam_lamda: 1.0
-  svdd_lamda: 1.0
-  warmup_start: 0
-  warmup_end: 9
+  svdd_lamda: 0.5
+  warmup_start: 10
+  warmup_end: 19
 
 # mlp model parameters
 mlp_ae:
@@ -94,8 +94,8 @@ mlp_ae:
 # resnet_ae model parameters
 resnet_ae:
   channels: 3
-  height: 64
-  width: 64
+  height: 224
+  width: 32
   enc_freeze: False
   enc_latent_dim: 
   dec_latent_dim: 2048
