@@ -75,7 +75,7 @@ ae:
   recon_type: mse
   reduction: mean
   simsiam_lamda: 1.0
-  svdd_lamda: 0.5
+  svdd_lamda: 1.0
 
 # mlp model parameters
 mlp_ae:
