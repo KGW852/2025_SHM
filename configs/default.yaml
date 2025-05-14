@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 1.6
+  version: 1.7
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -120,8 +120,8 @@ sim:
   proj_out_dim: 2048
   pred_hidden_dim: 512
   pred_out_dim: 2048
-  warmup_start: 10
-  warmup_end: 19
+  warmup_start: 0
+  warmup_end: 4
 
 # deepSVDD model & training parameters
 svdd:
