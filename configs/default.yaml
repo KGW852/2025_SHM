@@ -18,14 +18,14 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
   use: False
   epoch: [0, 2]  # [-1]: all
 test:
-  use: False
+  use: True
   epoch: [-1]  # [-1]: all
 
 # data parameters
