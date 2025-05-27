@@ -137,6 +137,9 @@ class ResSimSVDDAETrainer:
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
 
+        svdd_dist_s = 0.0
+        svdd_dist_t = 0.0
+
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
         for batch_idx, data in pbar:
             (x_s, y_s, _), (x_t, y_t, _) = data  # x_s, x_t: (B, C, H, W)
@@ -258,6 +261,9 @@ class ResSimSVDDAETrainer:
         recons_loss_t = 0.0
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
+
+        svdd_dist_s = 0.0
+        svdd_dist_t = 0.0
 
         pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
