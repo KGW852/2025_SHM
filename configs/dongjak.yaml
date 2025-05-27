@@ -9,7 +9,7 @@ eval:
   src_dir: ./data/dongjak(spectrogram)_girder/eval/eval01
   tgt_dir: ./data/dongjak(spectrogram)_girder/test/test18
 test:
-  src_dir: ./data/dongjak(spectrogram)_girder/eval/eval04
+  src_dir: ./data/dongjak(spectrogram)_girder/eval/eval03
   tgt_dir: ./data/dongjak(spectrogram)_girder/test/test18
 
 # overide default.yaml

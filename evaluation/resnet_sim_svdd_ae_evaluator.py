@@ -160,12 +160,12 @@ class ResSimSVDDAEEvaluator:
             save_dir = self.model_utils.get_save_dir()
             os.makedirs(f"{save_dir}/umap", exist_ok=True)
             #enc_umap_path = f"{save_dir}/umap/umap_s1(18)_encoder_epoch{epoch}.png"
-            #enc_umap_path = f"{save_dir}/umap/umap_s2(18)_encoder_epoch{epoch}.png"
-            enc_umap_path = f"{save_dir}/umap/umap_all(18)_encoder_epoch{epoch}.png"
+            enc_umap_path = f"{save_dir}/umap/umap_s2(18)_encoder_epoch{epoch}.png"
+            #enc_umap_path = f"{save_dir}/umap/umap_all(18)_encoder_epoch{epoch}.png"
             os.makedirs(f"{save_dir}/pca", exist_ok=True)
             #enc_pca_path = f"{save_dir}/pca/pca_s1(18)_encoder_epoch{epoch}.png"
-            #enc_pca_path = f"{save_dir}/pca/pca_s2(18)_encoder_epoch{epoch}.png"
-            enc_pca_path = f"{save_dir}/pca/pca_all(18)_encoder_epoch{epoch}.png"
+            enc_pca_path = f"{save_dir}/pca/pca_s2(18)_encoder_epoch{epoch}.png"
+            #enc_pca_path = f"{save_dir}/pca/pca_all(18)_encoder_epoch{epoch}.png"
 
             enc_np = np.stack(enc_list, axis=0)
             class_np = np.array(class_labels)
@@ -206,12 +206,13 @@ class ResSimSVDDAEEvaluator:
                 y_scores.append(score_tensor.item())
 
             os.makedirs(f"{save_dir}/metric", exist_ok=True)
-            #anomaly_data_path = f"{save_dir}/metric/anomaly_s2(18)_scores_epoch{epoch}_{self.method}.csv"
             #anomaly_data_path = f"{save_dir}/metric/anomaly_s1(18)_scores_epoch{epoch}_{self.method}.csv"
-            anomaly_data_path = f"{save_dir}/metric/anomaly_all(18)_scores_epoch{epoch}_{self.method}.csv"
-            #anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
+            anomaly_data_path = f"{save_dir}/metric/anomaly_s2(18)_scores_epoch{epoch}_{self.method}.csv"
+            #anomaly_data_path = f"{save_dir}/metric/anomaly_all(18)_scores_epoch{epoch}_{self.method}.csv"
+            
             #anomaly_metric_path = f"{save_dir}/metric/anomaly_s1(18)_metric_epoch{epoch}_{self.method}.csv"
-            anomaly_metric_path = f"{save_dir}/metric/anomaly_all(18)_metric_epoch{epoch}_{self.method}.csv"
+            anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
+            #anomaly_metric_path = f"{save_dir}/metric/anomaly_all(18)_metric_epoch{epoch}_{self.method}.csv"
 
             anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
             anomaly_dict = anomaly_metric.calc_metric()
