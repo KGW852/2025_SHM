@@ -30,8 +30,8 @@ test:
 
 # data parameters
 match_strategy: sequential  # random, sequential
-img_height: 128
-img_width: 32
+img_height: 231
+img_width: 16
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
@@ -92,8 +92,8 @@ mlp_ae:
 # resnet_ae model parameters
 resnet_ae:
   channels: 3
-  height: 128
-  width: 32
+  height: 231
+  width: 16
   enc_freeze: False
   enc_latent_dim: 
   dec_latent_dim: 2048
@@ -120,8 +120,8 @@ sim:
   proj_out_dim: 2048
   pred_hidden_dim: 512
   pred_out_dim: 2048
-  warmup_start: 1
-  warmup_end: 10
+  warmup_start: 11
+  warmup_end: 20
 
 # deepSVDD model & training parameters
 svdd:
