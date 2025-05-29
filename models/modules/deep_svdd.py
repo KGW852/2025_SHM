@@ -65,5 +65,5 @@ class DeepSVDD(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         feat = self.backbone(x)  # (B, latent_dim)
         dist_sq = torch.sum((feat - self.center) ** 2, dim=1)
-        dist = torch.mean(dist_sq) / feat.size(1)
+        dist = torch.sqrt(dist_sq) / feat.size(1)
         return feat, dist

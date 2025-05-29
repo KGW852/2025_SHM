@@ -209,7 +209,7 @@ class ResSimSVDDAEEvaluator:
             #anomaly_data_path = f"{save_dir}/metric/anomaly_s1(18)_scores_epoch{epoch}_{self.method}.csv"
             anomaly_data_path = f"{save_dir}/metric/anomaly_s2(18)_scores_epoch{epoch}_{self.method}.csv"
             #anomaly_data_path = f"{save_dir}/metric/anomaly_all(18)_scores_epoch{epoch}_{self.method}.csv"
-            
+
             #anomaly_metric_path = f"{save_dir}/metric/anomaly_s1(18)_metric_epoch{epoch}_{self.method}.csv"
             anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
             #anomaly_metric_path = f"{save_dir}/metric/anomaly_all(18)_metric_epoch{epoch}_{self.method}.csv"
