@@ -46,7 +46,7 @@ save_every: 5
 
 optimizer:
   type: adamw
-  learning_rate: 1e-3
+  learning_rate: 5e-4
   weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
