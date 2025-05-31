@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 2.1
+  version: 2.2
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -45,8 +45,8 @@ log_every: 1
 save_every: 5
 
 optimizer:
-  type: adamw
-  learning_rate: 5e-4
+  type: sgd
+  learning_rate: 1e-4
   weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
@@ -74,7 +74,7 @@ mlflow:
 ae:
   recon_type: mse
   reduction: mean
-  simsiam_lamda: 1.0
+  simsiam_lamda: 1.5
   svdd_lamda: 1.0
 
 # mlp model parameters
@@ -139,7 +139,7 @@ svdd:
 
 # umap parameters
 umap:
-  n_neighbors: 400
+  n_neighbors: 15
   min_dist: 0.1
   n_components: 2
   random_state: 42
