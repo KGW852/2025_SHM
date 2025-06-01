@@ -5,7 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve
+from scipy.stats import gaussian_kde
 
 from utils.csv_utils import save_csv
 
@@ -154,3 +156,35 @@ class AnomalyMetric:
             rows_metric.append([k, v])
 
         save_csv(rows_metric, metric_csv_path)
+
+    def save_kde_plot(self, plot_path: str):
+        if self.y_score_arr is None or len(self.y_score_arr) == 0:
+            raise ValueError("no score data to draw a KDE plot.")
+        
+        # threshold
+        threshold_val = None
+        if self.results_dict is not None and 'threshold' in self.results_dict:
+            threshold_val = self.results_dict['threshold']
+        else:
+            threshold_val = self.thresholded
+        if threshold_val is None:
+            raise ValueError("Threshold value is not set. Run calc_metric() first.")
+        
+        # KDE computation: kernel density estimation for score data
+        scores = self.y_score_arr
+        kde = gaussian_kde(scores)
+        x_vals = np.linspace(scores.min(), scores.max(), 1000)
+        y_vals = kde(x_vals)
+
+        # plot: KDE curves and threshold lines
+        plt.figure(figsize=(8, 6))
+        plt.plot(x_vals, y_vals, label='Score KDE')
+        plt.axvline(x=threshold_val, color='red', linestyle='--', label=f'Threshold = {threshold_val:.3f}')
+        
+        plt.title('Anomaly Score Distribution')
+        plt.xlabel('Anomaly Score')
+        plt.ylabel('Density')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_path, dpi=300)
+        plt.close()
