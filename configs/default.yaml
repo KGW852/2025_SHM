@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 2.3.2
+  version: 2.3.3
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -40,13 +40,13 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 10
+epochs: 50
 log_every: 1
 save_every: 5
 
 optimizer:
   type: sgd
-  learning_rate: 5e-3
+  learning_rate: 1e-2
   weight_decay: 1e-4  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
@@ -120,8 +120,8 @@ sim:
   proj_out_dim: 2048
   pred_hidden_dim: 512
   pred_out_dim: 2048
-  warmup_start: 0
-  warmup_end: 0
+  warmup_start: 6
+  warmup_end: 6
 
 # deepSVDD model & training parameters
 svdd:
