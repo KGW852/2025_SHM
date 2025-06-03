@@ -14,7 +14,7 @@ test:
 
 # overide default.yaml
 ae:
-  svdd_lamda: 1.0
+  reduction: mean
 
 # original path
 orig_dir:

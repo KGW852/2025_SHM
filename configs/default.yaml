@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 2.3.3
+  version: 3.0
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -75,7 +75,7 @@ ae:
   recon_type: mse
   reduction: mean
   simsiam_lamda: 1.5
-  svdd_lamda: 1.0
+  svdd_lamda: 0.5
 
 # mlp model parameters
 mlp_ae:
@@ -134,8 +134,8 @@ svdd:
   use_batch_norm: True
   nu: 0.01
   reduction: simple  # simple, mean, sum
-  warmup_start: 20
-  warmup_end: 24
+  warmup_start: 21
+  warmup_end: 30
 
 # umap parameters
 umap:

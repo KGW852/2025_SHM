@@ -161,7 +161,7 @@ class ResSimSVDDAETrainer:
             svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
             svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
-            loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) #+ (svdd_warmup * self.svdd_lamda * svdd_loss)
+            loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) + (svdd_warmup * self.svdd_lamda * svdd_loss)
 
             # Backpropagation
             if do_train:
@@ -287,7 +287,7 @@ class ResSimSVDDAETrainer:
                 svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
                 svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
-                loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) #+ (svdd_warmup * self.svdd_lamda * svdd_loss)
+                loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) + (svdd_warmup * self.svdd_lamda * svdd_loss)
 
                 # Accumulate losses
                 total_loss += loss.item()
