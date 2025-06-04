@@ -75,7 +75,7 @@ ae:
   recon_type: mse
   reduction: mean
   simsiam_lamda: 1.5
-  svdd_lamda: 0.5
+  svdd_lamda: 1.0
 
 # mlp model parameters
 mlp_ae:
@@ -134,8 +134,8 @@ svdd:
   use_batch_norm: True
   nu: 0.01
   reduction: simple  # simple, mean, sum
-  warmup_start: 21
-  warmup_end: 30
+  warmup_start: 16
+  warmup_end: 16
 
 # umap parameters
 umap:
