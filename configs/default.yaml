@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 3.0.1
+  version: 3.2.3
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -45,9 +45,9 @@ log_every: 1
 save_every: 5
 
 optimizer:
-  type: adam
+  type: sgd
   learning_rate: 5e-3
-  weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
+  weight_decay: 1e-4  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
 scheduler:  # steplr, multisteplr, exponentiallr, cosineannealinglr
@@ -74,7 +74,7 @@ mlflow:
 ae:
   recon_type: mse
   reduction: mean
-  simsiam_lamda: 1.0
+  simsiam_lamda: 1.5
   svdd_lamda: 1.0
 
 # mlp model parameters
@@ -116,18 +116,18 @@ tcn:
 # simsiam model & training parameters
 sim:
   in_dim: 
-  proj_hidden_dim: 2048
-  proj_out_dim: 2048
-  pred_hidden_dim: 512
-  pred_out_dim: 2048
-  warmup_start: 6
-  warmup_end: 6
+  proj_hidden_dim: 512
+  proj_out_dim: 512
+  pred_hidden_dim: 128
+  pred_out_dim: 512
+  warmup_start: 0
+  warmup_end: 0
 
 # deepSVDD model & training parameters
 svdd:
-  in_dim: 2048
+  in_dim: 512
   hidden_dims: [256]
-  latent_dim: 2048
+  latent_dim: 512
   center_param: False
   radius_param: False
   dropout: 0.1
@@ -135,11 +135,11 @@ svdd:
   nu: 0.01
   reduction: simple  # simple, mean, sum
   warmup_start: 11
-  warmup_end: 11
+  warmup_end: 20
 
 # umap parameters
 umap:
-  n_neighbors: 15
+  n_neighbors: 499
   min_dist: 0.1
   n_components: 2
   random_state: 42

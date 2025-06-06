@@ -29,7 +29,7 @@ class DeepSVDDLoss(nn.Module):
         dist_sq = torch.sum((features - center) ** 2, dim=1)  # [batch_size]
         
         if self.reduction == 'simple':
-            loss = torch.mean(dist_sq) / features.size(1)
+            loss = torch.mean(dist_sq)  # loss = torch.mean(dist_sq) / features.size(1)
         else:  # Ruff et al. (ICML 2018): Cumulative form, L = R^2 + (1 / (nu * N)) * sum( max(0, dist_sq - R^2) )
             dist_diff = dist_sq - radius.pow(2)
             loss_term = torch.clamp(dist_diff, min=0)

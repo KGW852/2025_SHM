@@ -104,7 +104,7 @@ class ResSimSVDDAETrainer:
                 x_t = x_t.to(self.device)
 
                 # forward
-                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
                 c += torch.sum(feat_s, dim=0)
                 n_samples += feat_s.size(0)
 
@@ -137,10 +137,7 @@ class ResSimSVDDAETrainer:
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
 
-        sum_dist_s = 0.0
-        sum_dist_t = 0.0
         count_samples = 0
-
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
         for batch_idx, data in pbar:
             (x_s, y_s, _), (x_t, y_t, _) = data  # x_s, x_t: (B, C, H, W)
@@ -150,7 +147,7 @@ class ResSimSVDDAETrainer:
             self.optimizer.zero_grad()
 
             # Forward pass
-            (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+            (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
 
             # Compute reconstruction losses
             recon_loss_s = self.recon_criterion(x_s_recon, x_s)
@@ -177,11 +174,6 @@ class ResSimSVDDAETrainer:
             recons_loss_t += recon_loss_t.item()
             deep_svdd_loss_s += svdd_loss_s.item()
             deep_svdd_loss_t += svdd_loss_t.item()
-
-            # dist_s, dist_t: L2^2 distance (B,)
-            sum_dist_s += dist_s.detach().sum().item()
-            sum_dist_t += dist_t.detach().sum().item()
-            count_samples += dist_s.size(0)
 
             # mlflow log: global step
             if self.mlflow_logger is not None and batch_idx % 1 == 0:
@@ -216,10 +208,6 @@ class ResSimSVDDAETrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        # calc dist_s, dist_t avg
-        avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
-        avg_dist_t = sum_dist_t / count_samples if count_samples > 0 else 0.0
-
         center_out = self.model.svdd.center
         radius_out = self.model.svdd.radius
 
@@ -227,7 +215,6 @@ class ResSimSVDDAETrainer:
               f"Avg: {avg_loss:.4f} | Recon: {avg_recon_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
               f"Recon_S: {avg_recon_loss_s:.4f} | Recon_T: {avg_recon_loss_t:.4f} | "
               f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
-              f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
               f"Radius: {radius_out.item():.4f}")
 
         if self.mlflow_logger is not None:
@@ -240,8 +227,6 @@ class ResSimSVDDAETrainer:
                 "train_recon_loss_t": avg_recon_loss_t,
                 "train_svdd_loss_s": avg_svdd_loss_s,
                 "train_svdd_loss_t": avg_svdd_loss_t,
-                "train_mean_dist_s": avg_dist_s,
-                "train_mean_dist_t": avg_dist_t,
                 "train_radius": radius_out.item()
             }, step=epoch)
 
@@ -264,10 +249,7 @@ class ResSimSVDDAETrainer:
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
 
-        sum_dist_s = 0.0
-        sum_dist_t = 0.0
         count_samples = 0
-
         pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
@@ -276,7 +258,7 @@ class ResSimSVDDAETrainer:
                 x_t = x_t.to(self.device)
 
                 # Forward pass
-                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
 
                 # Compute reconstruction losses
                 recon_loss_s = self.recon_criterion(x_s_recon, x_s)
@@ -298,11 +280,6 @@ class ResSimSVDDAETrainer:
                 recons_loss_t += recon_loss_t.item()
                 deep_svdd_loss_s += svdd_loss_s.item()
                 deep_svdd_loss_t += svdd_loss_t.item()
-
-                # dist_s, dist_t: L2^2 distance (B,)
-                sum_dist_s += dist_s.detach().sum().item()
-                sum_dist_t += dist_t.detach().sum().item()
-                count_samples += dist_s.size(0)
 
                 # Log to MLflow every batch
                 if self.mlflow_logger is not None and batch_idx % 1 == 0:
@@ -333,10 +310,6 @@ class ResSimSVDDAETrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        # calc dist_s, dist_t avg
-        avg_dist_s = sum_dist_s / count_samples if count_samples > 0 else 0.0
-        avg_dist_t = sum_dist_t / count_samples if count_samples > 0 else 0.0
-
         center_out = self.model.svdd.center
         radius_out = self.model.svdd.radius
 
@@ -344,7 +317,6 @@ class ResSimSVDDAETrainer:
               f"Avg: {avg_loss:.4f} | Recon: {avg_recon_loss:.4f} | SimSiam: {avg_sim_loss:.4f} | SVDD: {avg_svdd_loss:.4f} | "
               f"Recon_S: {avg_recon_loss_s:.4f} | Recon_T: {avg_recon_loss_t:.4f} | "
               f"SVDD_S: {avg_svdd_loss_s:.4f} | SVDD_T: {avg_svdd_loss_t:.4f} | "
-              f"Dist_S: {avg_dist_s:.4f} | Dist_T: {avg_dist_t:.4f} | "
               f"Radius: {radius_out.item():.4f}")
 
         if self.mlflow_logger is not None:
@@ -357,8 +329,6 @@ class ResSimSVDDAETrainer:
                 "eval_recon_loss_t": avg_recon_loss_t,
                 "eval_svdd_loss_s": avg_svdd_loss_s,
                 "eval_svdd_loss_t": avg_svdd_loss_t,
-                "eval_mean_dist_s": avg_dist_s,
-                "eval_mean_dist_t": avg_dist_t,
                 "eval_radius": radius_out.item()
             }, step=epoch)
 

@@ -99,7 +99,7 @@ class ResSimSVDDAEEvaluator:
                 x_t = tgt_data.to(self.device)
 
                 # Forward pass
-                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, dist_s, feat_t, dist_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
+                (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
 
                 batch_size = len(src_path)
                 for i in range(batch_size):
@@ -108,6 +108,10 @@ class ResSimSVDDAEEvaluator:
                     class_label_tgt = tgt_label[i][0].item()
                     anomaly_label_tgt = tgt_label[i][1].item()
 
+                    # calc dist
+                    dist_s = torch.sum((e_s - self.center) ** 2, dim=1) / e_s.size(1)  # (B,)
+                    dist_t = torch.sum((e_t - self.center) ** 2, dim=1) / e_t.size(1)
+
                     # Collect results
                     src_results.append({
                         "file_name": src_path[i],
@@ -115,7 +119,7 @@ class ResSimSVDDAEEvaluator:
                         "encoder": e_s[i].cpu().numpy(),
                         "projector": z_s[i].cpu().numpy(),
                         "feature" : feat_s[i].cpu().numpy(),
-                        "distance" : dist_s[i].cpu().numpy(),
+                        "distance" : dist_s[i].item(),
                         "x_recon": x_s_recon[i].cpu().numpy(),
                         "class_label": class_label_src,
                         "anomaly_label": anomaly_label_src,
@@ -127,7 +131,7 @@ class ResSimSVDDAEEvaluator:
                         "encoder": e_t[i].cpu().numpy(),
                         "projector": z_t[i].cpu().numpy(),
                         "feature" : feat_t[i].cpu().numpy(),
-                        "distance" : dist_t[i].cpu().numpy(),
+                        "distance" : dist_t[i].item(),
                         "x_recon": x_t_recon[i].cpu().numpy(),
                         "class_label": class_label_tgt,
                         "anomaly_label": anomaly_label_tgt,
