@@ -46,7 +46,7 @@ save_every: 5
 
 optimizer:
   type: adam
-  learning_rate: 1e-2
+  learning_rate: 5e-3
   weight_decay: 1e-3  # adam, adamw, sgd, rmsprop
   momentum: 0.9  # sgd, rmsprop
 
@@ -74,7 +74,7 @@ mlflow:
 ae:
   recon_type: mse
   reduction: mean
-  simsiam_lamda: 2.0
+  simsiam_lamda: 1.0
   svdd_lamda: 1.0
 
 # mlp model parameters
