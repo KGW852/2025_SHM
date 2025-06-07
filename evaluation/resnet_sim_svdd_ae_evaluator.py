@@ -81,7 +81,7 @@ class ResSimSVDDAEEvaluator:
         checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
-        self.center = self.model.svdd.center.detach().clone()
+        self.center = self.model.svdd.center_enc.detach().clone()
         self.radius = self.model.svdd.radius.detach().clone()
 
     def test_epoch(self, data_loader, epoch):

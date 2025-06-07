@@ -12,7 +12,7 @@ model:
   trainer_fn: ResSimSVDDAETrainer
   evaluator: resnet_sim_svdd_ae_evaluator.py
   evaluator_fn: ResSimSVDDAEEvaluator
-  version: 3.2.3
+  version: 3.2.4
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
@@ -35,12 +35,12 @@ img_width: 64
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
 test_n_samples: 200
-batch_size: 8
+batch_size: 16
 n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 50
+epochs: 30
 log_every: 1
 save_every: 5
 
@@ -75,7 +75,7 @@ ae:
   recon_type: mse
   reduction: mean
   simsiam_lamda: 1.5
-  svdd_lamda: 1.0
+  svdd_lamda: 0.5
 
 # mlp model parameters
 mlp_ae:

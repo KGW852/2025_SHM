@@ -81,19 +81,19 @@ class ResSimSVDDAETrainer:
         # run_name: model_name
         self.run_name = self.model_utils.get_model_name()
 
-    def init_center(self, data_loader, eps=1e-5):
+    def init_center(self, data_loader):
         """
         Initialize the center of the actual data distribution before training
         Args:
             data_loader: DataLoader containing only normal data (or entire dataset)
-            eps (float): Constant for correcting values that are too close to zero
         """
-        print("[DeepSVDD] Initializing center with mean of dataset ...")
         self.model.eval()
 
         # center vector
+        enc_latent_dim = self.model.svdd.enc_latent_dim
         latent_dim = self.model.svdd.latent_dim
-        c = torch.zeros(latent_dim, device=self.device)
+        c_e = torch.zeros(enc_latent_dim, device=self.device)
+        c_f = torch.zeros(latent_dim, device=self.device)
         n_samples = 0
 
         pbar = tqdm(enumerate(data_loader), total=len(data_loader), desc=f"Epoch [Init/{self.epochs}] Center", leave=False)
@@ -105,16 +105,17 @@ class ResSimSVDDAETrainer:
 
                 # forward
                 (e_s, e_t, z_s, p_s, z_t, p_t, feat_s, feat_t, x_s_recon, x_t_recon) = self.model(x_s, x_t)
-                c += torch.sum(feat_s, dim=0)
+                c_e += torch.sum(e_s, dim=0)
+                c_f += torch.sum(feat_s, dim=0)
                 n_samples += feat_s.size(0)
 
-        c /= n_samples
-
-        eps = eps
-        mask = torch.abs(c) < eps
-        c[mask] = 0.0
-        self.model.svdd.center.data = c
-        print(f"[DeepSVDD] center initialized. (norm={c.norm():.4f}, value={c[:5]})")
+        c_e /= n_samples
+        c_f /= n_samples
+        
+        self.model.svdd.center_enc.data = c_e
+        self.model.svdd.center_feat.data = c_f
+        print(f"[DeepSVDD] center initialized. (Embedded center: dim={c_e.numel()} norm={c_e.norm():.4f} value={c_e[:2]}), "
+              f"(SVDD Featured center: dim={c_f.numel()} norm={c_f.norm():.4f} value={c_f[:2]})")
 
     def train_epoch(self, train_loader, epoch: int):
         """
@@ -137,7 +138,6 @@ class ResSimSVDDAETrainer:
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
 
-        count_samples = 0
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch [{epoch}/{self.epochs}] Train", leave=False)
         for batch_idx, data in pbar:
             (x_s, y_s, _), (x_t, y_t, _) = data  # x_s, x_t: (B, C, H, W)
@@ -154,8 +154,8 @@ class ResSimSVDDAETrainer:
             recon_loss_t = self.recon_criterion(x_t_recon, x_t)
             recon_loss = 0.5 * (recon_loss_s + recon_loss_t)
             sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-            svdd_loss_s = self.svdd_criterion(feat_s, self.model.svdd.center, self.model.svdd.radius)
-            svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
+            svdd_loss_s = self.svdd_criterion(feat_s, self.model.svdd.center_feat, self.model.svdd.radius)
+            svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center_feat, self.model.svdd.radius)
             svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
             loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) + (svdd_warmup * self.svdd_lamda * svdd_loss)
@@ -208,7 +208,6 @@ class ResSimSVDDAETrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        center_out = self.model.svdd.center
         radius_out = self.model.svdd.radius
 
         print(f"[Train] [Epoch {epoch}/{self.epochs}] "
@@ -249,7 +248,6 @@ class ResSimSVDDAETrainer:
         deep_svdd_loss_s = 0.0
         deep_svdd_loss_t = 0.0
 
-        count_samples = 0
         pbar = tqdm(enumerate(eval_loader), total=len(eval_loader), desc=f"Epoch [{epoch}/{self.epochs}] Eval", leave=False)
         with torch.no_grad():
             for batch_idx, data in pbar:
@@ -265,8 +263,8 @@ class ResSimSVDDAETrainer:
                 recon_loss_t = self.recon_criterion(x_t_recon, x_t)
                 recon_loss = 0.5 * (recon_loss_s + recon_loss_t)
                 sim_loss = self.simsiam_criterion(p_s, z_t, p_t, z_s)
-                svdd_loss_s = self.svdd_criterion(feat_s, self.model.svdd.center, self.model.svdd.radius)
-                svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center, self.model.svdd.radius)
+                svdd_loss_s = self.svdd_criterion(feat_s, self.model.svdd.center_feat, self.model.svdd.radius)
+                svdd_loss_t = self.svdd_criterion(feat_t, self.model.svdd.center_feat, self.model.svdd.radius)
                 svdd_loss = 0.5 * (svdd_loss_s + svdd_loss_t)
 
                 loss = recon_loss + (sim_warmup * self.simsiam_lamda * sim_loss) + (svdd_warmup * self.svdd_lamda * svdd_loss)
@@ -310,7 +308,6 @@ class ResSimSVDDAETrainer:
         avg_svdd_loss_s = deep_svdd_loss_s / num_batches
         avg_svdd_loss_t = deep_svdd_loss_t / num_batches
 
-        center_out = self.model.svdd.center
         radius_out = self.model.svdd.radius
 
         print(f"[Eval]  [Epoch {epoch}/{self.epochs}] "
@@ -365,11 +362,11 @@ class ResSimSVDDAETrainer:
         last_saved_epoch = None
 
         if self.model.svdd.center_param:
-            self.init_center(train_loader, eps=1e-5)
+            self.init_center(train_loader)
 
         for epoch in range(self.epochs + 1):
             if not self.model.svdd.center_param:  # init_center
-                self.init_center(train_loader, eps=1e-5)
+                self.init_center(train_loader)
 
             train_loss_tuple = self.train_epoch(train_loader, epoch)  # Train
             (train_avg, train_recon, train_sim, train_svdd) = train_loss_tuple
