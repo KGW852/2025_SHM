@@ -34,7 +34,7 @@ img_height: 128
 img_width: 64
 train_n_samples: -1  # -1: all
 eval_n_samples: -1
-test_n_samples: 200
+test_n_samples: 500
 batch_size: 16
 n_workers: 8
 
