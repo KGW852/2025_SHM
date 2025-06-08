@@ -13,6 +13,8 @@ from utils.datalist_utils import remove_duplicates
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
 from evaluation.modules.umap import UMAPPlot
 from evaluation.modules.pca import PCAPlot
+from evaluation.modules.histogram import HistPlot
+from evaluation.modules.all_scores import ExtractScore
 
 
 class ResSimSVDDAEEvaluator:
@@ -65,6 +67,7 @@ class ResSimSVDDAEEvaluator:
         self.anomaly_score = AnomalyScore(self.cfg)
         self.umap = UMAPPlot(self.cfg)
         self.pca = PCAPlot(self.cfg)
+        self.extract_score = ExtractScore(self.cfg)
         self.method = cfg["anomaly"]["method"]
 
         # center, radius
@@ -118,6 +121,7 @@ class ResSimSVDDAEEvaluator:
                         "x": x_s[i].cpu().numpy(),
                         "encoder": e_s[i].cpu().numpy(),
                         "projector": z_s[i].cpu().numpy(),
+                        "predictor": p_s[i].cpu().numpy(),
                         "feature" : feat_s[i].cpu().numpy(),
                         "distance" : dist_s[i].item(),
                         "x_recon": x_s_recon[i].cpu().numpy(),
@@ -130,6 +134,7 @@ class ResSimSVDDAEEvaluator:
                         "x": x_t[i].cpu().numpy(),
                         "encoder": e_t[i].cpu().numpy(),
                         "projector": z_t[i].cpu().numpy(),
+                        "predictor": p_t[i].cpu().numpy(),
                         "feature" : feat_t[i].cpu().numpy(),
                         "distance" : dist_t[i].item(),
                         "x_recon": x_t_recon[i].cpu().numpy(),
@@ -218,17 +223,40 @@ class ResSimSVDDAEEvaluator:
             anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
             #anomaly_metric_path = f"{save_dir}/metric/anomaly_all(18)_metric_epoch{epoch}_{self.method}.csv"
 
+            # Histogram plot
+            hist_scores = [res["distance"] for res in test_results]
+
+            os.makedirs(f"{save_dir}/histogram", exist_ok=True)
+            hist_path = f"{save_dir}/histogram/anomaly_s2(18)_hist_epoch{epoch}_{self.method}.png"
+            #hist_path = f"{save_dir}/histogram/anomaly_all(18)_hist_epoch{epoch}_{self.method}.png"
+
+            # Extract all scores
+            os.makedirs(f"{save_dir}/scores", exist_ok=True)
+            recon_scores_path = f"{save_dir}/scores/s2(18)_scores_epoch{epoch}_recon.csv"
+            distance_scores_path = f"{save_dir}/scores/s2(18)_scores_epoch{epoch}_distance.csv"
+
+            # Results
             anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
             anomaly_dict = anomaly_metric.calc_metric()
             print(f"[Test]  [Epoch {epoch}] | Metric: {self.method} | ", anomaly_dict)
 
             anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
 
+            hist_plot = HistPlot(anomaly_dict=anomaly_dict)
+            hist_plot.plot_hist(save_path=hist_path, scores=hist_scores, class_labels=class_labels)
+
+            self.extract_score.recon_scores(csv_path=recon_scores_path, results_list=test_results)
+            self.extract_score.distance_scores(csv_path=distance_scores_path, results_list=test_results)
+
+            # mlflow
             if self.mlflow_logger:
-                self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
-                self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
                 self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
+                self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
+                self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
+                self.mlflow_logger.log_artifact(hist_path, artifact_path="histogram")
+                self.mlflow_logger.log_artifact(recon_scores_path, artifact_path="scores")
+                self.mlflow_logger.log_artifact(distance_scores_path, artifact_path="scores")
 
         if self.mlflow_logger:
             self.mlflow_logger.end_run()

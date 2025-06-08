@@ -18,7 +18,7 @@ model:
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
@@ -26,7 +26,7 @@ eval:  # not used
   epoch: [0, 2]  # [-1]: all
 test:
   use: True
-  epoch: [-1]  # [-1]: all
+  epoch: [30]  # [-1]: all
 
 # data parameters
 match_strategy: sequential  # random, sequential
