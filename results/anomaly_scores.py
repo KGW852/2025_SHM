@@ -36,12 +36,12 @@ def plot_roc_curves(recon_path: str, dist_path: str, save_path: str):
                  ("Distance", dist_df)]
 
     # Pairs of classes to compare (normal class, abnormal class)
-    class_pairs = [(0, 1), (23, 1)]
+    class_pairs = [(0, 2), (18, 2), (23, 2)]
 
     for name, df in scenarios:
         for normal_class, anomaly_class_val in class_pairs:
             filtered_df = df[df["class_label"].isin([normal_class, anomaly_class_val])].copy()
-            # y_true: anomaly_label (0: normal, 1: anormal)
+            # y_true: anomaly_label (0: normal, 2: anormal)
             y_true = filtered_df["anomaly_label"]
             # y_score: predict score
             y_score = filtered_df["score"]
@@ -70,8 +70,8 @@ def plot_roc_curves(recon_path: str, dist_path: str, save_path: str):
 
 
 if __name__ == "__main__":
-    recon_file = "./results/scores/csv/v3.2.4/s1(23)_scores_epoch30_recon.csv"
-    dist_file = "./results/scores/csv/v3.2.4/s1(23)_scores_epoch30_distance.csv"
-    output_file = "./results/scores/figure/v3.2.4/s1(23)_auc_roc_curves_final.png"
+    recon_file = "./results/scores/csv/v3.2.4/s2(all)_scores_epoch30_recon.csv"
+    dist_file = "./results/scores/csv/v3.2.4/s2(all)_scores_epoch30_distance.csv"
+    output_file = "./results/scores/figure/v3.2.4/s2(all)_auc_roc_curves_final.png"
 
     plot_roc_curves(recon_path=recon_file, dist_path=dist_file, save_path=output_file)
