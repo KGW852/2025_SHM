@@ -157,7 +157,7 @@ pca:
 
 # anomaly score metric
 anomaly:
-  method: distance  # simsiam, distance, distribution, reconloss
+  method: reconloss  # simsiam, distance, distribution, reconloss
   recon_type: mse
   thresholded: 
   distribution_percentile: 99

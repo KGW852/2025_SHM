@@ -13,6 +13,7 @@ from utils.datalist_utils import remove_duplicates
 from evaluation.modules.anomaly_metrics import AnomalyScore, AnomalyMetric
 from evaluation.modules.umap import UMAPPlot
 from evaluation.modules.pca import PCAPlot
+from evaluation.modules.all_scores import ExtractScore
 
 
 class ResNetAEEvaluator:
@@ -52,6 +53,7 @@ class ResNetAEEvaluator:
         self.anomaly_score = AnomalyScore(self.cfg)
         self.umap = UMAPPlot(self.cfg)
         self.pca = PCAPlot(self.cfg)
+        self.extract_score = ExtractScore(self.cfg)
         self.method = cfg["anomaly"]["method"]
 
     def load_checkpoint(self, epoch: int):
@@ -178,14 +180,21 @@ class ResNetAEEvaluator:
                 y_scores.append(score_tensor.item())
 
             os.makedirs(f"{save_dir}/metric", exist_ok=True)
-            anomaly_data_path = f"{save_dir}/metric/anomaly_scores_epoch{epoch}_{self.method}.csv"
-            anomaly_metric_path = f"{save_dir}/metric/anomaly_metric_epoch{epoch}_{self.method}.csv"
+            anomaly_data_path = f"{save_dir}/metric/anomaly_s2(18)_scores_epoch{epoch}_{self.method}.csv"
+            anomaly_metric_path = f"{save_dir}/metric/anomaly_s2(18)_metric_epoch{epoch}_{self.method}.csv"
 
+            # Extract all scores
+            os.makedirs(f"{save_dir}/scores", exist_ok=True)
+            recon_scores_path = f"{save_dir}/scores/s2(18)_scores_epoch{epoch}_recon.csv"
+
+            # Results
             anomaly_metric = AnomalyMetric(cfg=self.cfg, file_name=file_names, y_true=y_true, y_score=y_scores)
             anomaly_dict = anomaly_metric.calc_metric()
             print(f"[Test]  [Epoch {epoch}] | Metric: {self.method} | ", anomaly_dict)
 
             anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
+
+            self.extract_score.recon_scores(csv_path=recon_scores_path, results_list=test_results)
 
             if self.mlflow_logger:
                 self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
@@ -193,6 +202,7 @@ class ResNetAEEvaluator:
                 self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
                 self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
+                self.mlflow_logger.log_artifact(recon_scores_path, artifact_path="scores")
 
         if self.mlflow_logger:
             self.mlflow_logger.end_run()

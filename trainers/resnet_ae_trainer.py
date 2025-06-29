@@ -105,8 +105,8 @@ class ResNetAETrainer:
             recons_loss_s += recon_loss_s.item()
             recons_loss_t += recon_loss_t.item()
 
-            # Log to MLflow every 67 batches
-            if self.mlflow_logger is not None and batch_idx % 67 == 0:
+            # mlflow log: global step
+            if self.mlflow_logger is not None and batch_idx % 1 == 0:
                 global_step = epoch * len(train_loader) + batch_idx
                 self.mlflow_logger.log_metrics({
                     "train_loss_step": loss.item(),
