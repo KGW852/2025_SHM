@@ -2,6 +2,8 @@
 
 import torch
 import numpy as np
+import pandas as pd
+
 import umap.umap_ as umap
 import matplotlib.pyplot as plt
 from matplotlib.patches import PathPatch
@@ -74,12 +76,24 @@ class UMAPPlot:
         scaled = (arr - self.norm_min) / (self.norm_max - self.norm_min + 1e-8)
         return np.clip(scaled, 0.0, 1.0)
     
+    def _export_csv(self, csv_path, embedded, class_labels, anomaly_labels):
+        dim_cols = [f"umap_dim{i+1}" for i in range(embedded.shape[1])]
+        df = pd.DataFrame(embedded, columns=dim_cols)
+        df["class_label"] = class_labels
+        df["anomaly_label"] = anomaly_labels
+        df.to_csv(csv_path, index=False)
+
     def plot_umap(self, save_path, features, class_labels, anomaly_labels, 
-                  center: Optional[torch.Tensor], radius: Optional[float], boundary_samples: Optional[int]):
+                  center: Optional[torch.Tensor], radius: Optional[float], boundary_samples: Optional[int], 
+                  csv_path: Optional[str] = None):
         """
         Combine embeddings from multiple domains and perform UMAP dimensionality reduction.
         """
         embedded = self._fit_transform(features)  # (N, n_components)
+
+        # export csv
+        if csv_path is not None:
+            self._export_csv(csv_path, embedded, class_labels, anomaly_labels)
 
         # normalize the embeddings to fit in the [0, 1] square
         if self.normalize:
