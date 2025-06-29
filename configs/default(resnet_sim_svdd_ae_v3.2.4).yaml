@@ -1,24 +1,24 @@
 # configs/default.yaml
 
 # experiment set
-exp_name: exp2  # all, exp1, exp2...
+exp_name: exp1  # all, exp1, exp2...
 seed: 42
 
 # path
 model:
   data_name: dongjak
-  model_name: resnet_ae
-  trainer: resnet_ae_trainer.py
-  trainer_fn: ResNetAETrainer
-  evaluator: resnet_ae_evaluator.py
-  evaluator_fn: ResNetAEEvaluator
-  version: 3.0
+  model_name: resnet_sim_svdd_ae
+  trainer: resnet_sim_svdd_ae_trainer.py
+  trainer_fn: ResSimSVDDAETrainer
+  evaluator: resnet_sim_svdd_ae_evaluator.py
+  evaluator_fn: ResSimSVDDAEEvaluator
+  version: 3.2.4
   suffix: .pth
   base_dir: ./logs  # save model base dir
 
 # trainer step parameters
 train:
-  use: True
+  use: False
 
 # evaluator step parameters
 eval:  # not used
@@ -26,7 +26,7 @@ eval:  # not used
   epoch: [0, 2]  # [-1]: all
 test:
   use: True
-  epoch: [0, 5]  # [-1]: all
+  epoch: [30]  # [-1]: all
 
 # data parameters
 match_strategy: sequential  # random, sequential
@@ -40,7 +40,7 @@ n_workers: 8
 
 # train parameters
 device: cuda
-epochs: 5
+epochs: 30
 log_every: 1
 save_every: 5
 

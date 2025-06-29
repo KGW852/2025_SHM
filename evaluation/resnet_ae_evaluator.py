@@ -133,9 +133,11 @@ class ResNetAEEvaluator:
 
             save_dir = self.model_utils.get_save_dir()
             os.makedirs(f"{save_dir}/umap", exist_ok=True)
-            enc_umap_path = f"{save_dir}/umap/umap_encoder_epoch{epoch}.png"
+            enc_umap_path = f"{save_dir}/umap/umap_s2(18)_encoder_epoch{epoch}.png"
+            enc_umap_data_path = f"{save_dir}/umap/umap_s2(18)_encoder_epoch{epoch}.csv"
+
             os.makedirs(f"{save_dir}/pca", exist_ok=True)
-            enc_pca_path = f"{save_dir}/pca/pca_encoder_epoch{epoch}.png"
+            enc_pca_path = f"{save_dir}/pca/pca_s2(18)_encoder_epoch{epoch}.png"
 
             enc_np = np.stack(enc_list, axis=0)
             class_np = np.array(class_labels)
@@ -143,6 +145,7 @@ class ResNetAEEvaluator:
 
             self.umap.plot_umap(
                 save_path=enc_umap_path,
+                csv_path = enc_umap_data_path,
                 features=enc_np,
                 class_labels=class_np,
                 anomaly_labels=anomaly_np,
@@ -185,10 +188,11 @@ class ResNetAEEvaluator:
             anomaly_metric.save_anomaly_scores_as_csv(data_csv_path=anomaly_data_path, metric_csv_path=anomaly_metric_path)
 
             if self.mlflow_logger:
+                self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
+                self.mlflow_logger.log_artifact(enc_umap_data_path, artifact_path="umap")
+                self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
                 self.mlflow_logger.log_artifact(anomaly_data_path, artifact_path="metrics")
                 self.mlflow_logger.log_artifact(anomaly_metric_path, artifact_path="metrics")
-                self.mlflow_logger.log_artifact(enc_umap_path, artifact_path="umap")
-                self.mlflow_logger.log_artifact(enc_pca_path, artifact_path="pca")
 
         if self.mlflow_logger:
             self.mlflow_logger.end_run()
