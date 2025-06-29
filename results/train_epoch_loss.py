@@ -5,15 +5,30 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+WIDTH_MM = 80
+HEIGHT_MM = 150
+WIDTH_INCH = WIDTH_MM / 25.4
+HEIGHT_IN = HEIGHT_MM / 25.4
+
 plt.rcParams.update({
-    "font.family": "sans-serif",
-    "font.size": 11,
-    "axes.titlesize": 13,
-    "axes.labelsize": 12,
-    "legend.fontsize": 10,
-    "figure.dpi": 300,
-    "axes.linewidth": 0.6,
-    "lines.linewidth": 1.8,
+    "figure.figsize": (WIDTH_INCH, HEIGHT_IN),
+    "figure.dpi": 600,
+    "savefig.dpi": 600,
+    #"figure.autolayout": True,
+    "figure.subplot.hspace": 0.10,
+    #"figure.subplot.bottom": 0.00,
+
+    "font.family": "Times New Roman",
+    "font.size": 8,
+    "axes.titlesize": 8,
+    "axes.labelsize": 8,
+    "legend.fontsize": 8,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+
+    "axes.linewidth": 0.5,
+    "lines.linewidth": 0.5,
+    "lines.markersize": 2,
     "grid.alpha": 0.25,
 })
 
@@ -35,8 +50,7 @@ def plot_epoch_losses(csv_dir, save_dir):
                ("svdd", "(c) AD Distance")]
 
     # subplot
-    side = 4.0
-    fig, axes = plt.subplots(1, 3, figsize=(side * 3, side), constrained_layout=True)
+    fig, axes = plt.subplots(3, 1, figsize=plt.rcParams["figure.figsize"])
 
     for ax, (stem, title) in zip(axes, configs):
         train_csv = os.path.join(csv_dir, f"train_{stem}_loss.csv")
@@ -45,7 +59,7 @@ def plot_epoch_losses(csv_dir, save_dir):
         # skip subplot if either file is missing
         if not (os.path.exists(train_csv) and os.path.exists(eval_csv)):
             ax.set_axis_off()
-            ax.text(0.5, 0.5, f"{stem.upper()} files\nnot found", ha="center", va="center", fontsize=12,)
+            ax.text(0.5, 0.5, f"{stem.upper()} files\nnot found", ha="center", va="center")
             continue
 
         train_df = _read_loss_csv(train_csv)
@@ -56,15 +70,15 @@ def plot_epoch_losses(csv_dir, save_dir):
         loss_col  = "value" if "value" in train_df.columns else train_df.columns[5]
         
         # plot
-        ax.plot(train_df[epoch_col], train_df[loss_col], marker="o", markersize=4, linestyle="-", color="blue", label="Train Loss")
-        ax.plot(eval_df [epoch_col], eval_df [loss_col], marker="x", markersize=4, linestyle="--", color="blue", label="Val Loss")
+        ax.plot(train_df[epoch_col], train_df[loss_col], marker="o", linestyle="-", color="blue", label="Train Loss")
+        ax.plot(eval_df [epoch_col], eval_df [loss_col], marker="x", linestyle="--", color="blue", label="Val Loss")
 
-        ax.set_title(title)
-        ax.set_xlabel("Epochs")
+        ax.set_xlabel("Epochs", loc='right', labelpad=0)
         ax.set_ylabel("Loss")
-        ax.grid(True, linestyle="--", linewidth=.4)
-        ax.set_box_aspect(1)
+        ax.grid(True, which='both', linestyle='--')
+        ax.tick_params(axis='x', pad=0)
         ax.legend(frameon=False, loc="best")
+        ax.set_title(title, loc='center', pad=0, y=-0.25)
 
     fig.tight_layout()
     fig.savefig(save_path, bbox_inches="tight")
