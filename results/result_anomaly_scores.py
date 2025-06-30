@@ -1,4 +1,4 @@
-# results/anomaly_scores.py
+# results/result_anomaly_scores.py
 
 import os
 import sys
@@ -49,7 +49,7 @@ LABEL_MAP = {
     ("Distance", 23, 2): "24yr-measured",
 }
 
-def _read_loss_csv(path: str) -> pd.DataFrame:
+def _read_anomaly_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     if "score" in df.columns:
         df["score"] = pd.to_numeric(df["score"].astype(str).str.replace("'", ""), errors="coerce")
@@ -62,12 +62,12 @@ def plot_roc_curves(recon_path: str, dist_path: str, save_path: str):
     scenario_styles = {"Recon": ":", "Distance": "-"}
 
     if recon_path and os.path.isfile(recon_path):  # recon
-        scenarios.append(("Recon", _read_loss_csv(recon_path)))
+        scenarios.append(("Recon", _read_anomaly_csv(recon_path)))
     else:
         print(f"[WARN] Recon CSV not found → skip: {recon_path}", file=sys.stderr)
     
     if dist_path and os.path.isfile(dist_path):  # dist
-        scenarios.append(("Distance", _read_loss_csv(dist_path)))
+        scenarios.append(("Distance", _read_anomaly_csv(dist_path)))
     else:
         print(f"[WARN] Distance CSV not found → skip: {dist_path}", file=sys.stderr)
 

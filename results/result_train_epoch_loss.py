@@ -1,4 +1,4 @@
-# results/train_epoch_loss.py
+# results/result_train_epoch_loss.py
 
 import os
 import pandas as pd

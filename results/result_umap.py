@@ -1,14 +1,14 @@
-# results/compare_fem_exp.py
+# results/result_umap.py
 
 import os
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
-WIDTH_MM   = 84
+WIDTH_MM = 80
+HEIGHT_MM = 150
 WIDTH_INCH = WIDTH_MM / 25.4
-HEIGHT_IN  = 8.2
+HEIGHT_IN = HEIGHT_MM / 25.4
 
 plt.rcParams.update({
     "figure.figsize": (WIDTH_INCH, HEIGHT_IN),
@@ -28,34 +28,31 @@ plt.rcParams.update({
 
     "axes.linewidth": 0.5,
     "lines.linewidth": 0.5,
-    "lines.markersize": 4,
+    "lines.markersize": 2,
     "grid.alpha": 0.25,
 })
 
 # (filename, subplot title) in the desired order
 MAP_CONFIGS = {
-    'fem_orig': ('A-T-40-Down(Test)-12.csv', '(a) FEM Original TH'),
-    'exp_orig': ('A-T-18-40-Down-4.csv', '(b) Experimental Original TH'),
-    'fem_cut': ('A-T-40-Down(Test)-12-cut.csv', '(c) FEM Free-vib. TH'),
-    'exp_cut': ('A-T-18-40-Down-4-cut.csv', '(d) Experimental Free-vib. TH'),
-    'fem_fft': ('A-T-40-Down(Test)-12-cut_FFT.csv', '(e) FEM Free-vib. FFT'),
-    'exp_fft': ('A-T-18-40-Down-4-cut_FFT.csv', '(f) Experimental Free-vib. FFT')
+    'enc_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch0.csv', '(a) Before DA'),
+    'ae_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch5.csv', '(b) Before DA'),
+    'da_after': ('v3.2.4/umap_s2(18)_encoder_epoch30.csv', '(c) After DA')
 }
 
-def _read_loss_csv(path: str) -> pd.DataFrame:
+def _read_umap_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     if "value" in df.columns:
         df["value"] = pd.to_numeric(df["value"].astype(str).str.replace("'", ""), errors="coerce")
     return df
 
-def plot_compare_signal(csv_dir, save_dir):
-    fig_name = 'compare_fem_exp.png'
+def plot_umap(csv_dir, save_dir):
+    fig_name = 'umap_s2(18)_encoder.png'
     save_path = os.path.join(save_dir, fig_name)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     # subplot
-    fig, axes = plt.subplots(nrows=6, ncols=1, figsize=plt.rcParams["figure.figsize"])
+    fig, axes = plt.subplots(3, 1, figsize=plt.rcParams["figure.figsize"])
 
     for idx, (key, (fname, title)) in enumerate(MAP_CONFIGS.items()):
         ax = axes[idx]
@@ -63,23 +60,11 @@ def plot_compare_signal(csv_dir, save_dir):
         csv_path = os.path.join(csv_dir, fname)
         if not os.path.isfile(csv_path):
             raise FileNotFoundError(f"{csv_path} not found")
-        df = _read_loss_csv(csv_path)
+        df = _read_umap_csv(csv_path)
         
         # plot
         ax.plot(df.iloc[:, 0], df.iloc[:, 1], color='blue')
         ax.grid(True, which='both', linestyle='--')
-
-        # vertical line
-        if idx in (0, 1):
-            ax.axvline(x=78.0, color='red', linestyle='--', linewidth=0.8)
-
-        if 'fft' in key.lower():
-            xlabel, ylabel = "Freq. (Hz)", "Magnitude"
-        else:
-            xlabel, ylabel = "Time (s)", "Amplitude"
-    
-        ax.set_xlabel(xlabel, loc='right', labelpad=0)
-        ax.set_ylabel(ylabel)
         ax.tick_params(axis='x', pad=0)
         ax.set_title(title, loc='center', pad=0, y=-0.25)
 
@@ -88,5 +73,6 @@ def plot_compare_signal(csv_dir, save_dir):
     plt.close(fig)
     print(f"[✓] Figure saved → {os.path.relpath(save_path)}")
 
+
 if __name__ == "__main__":
-    plot_compare_signal(csv_dir='./results/compare fem exp/csv', save_dir='./results/compare fem exp/figure')
+    plot_umap(csv_dir='./results/umap/csv', save_dir='./results/umap/figure')
