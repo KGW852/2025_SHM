@@ -40,7 +40,7 @@ plt.rcParams.update({
 
 CLASS_PAIRS = [(0, 2), (18, 2), (23, 2)]
 
-LABEL_MAP = {
+LEGEND_MAP = {
     ("Recon",     0, 2): "Healthy vs. Pneumonia",
     ("Recon",    18, 2): "Metal Noise vs. Pneumonia",
     ("Recon",    23, 2): "Device-B vs. Pneumonia",
@@ -91,9 +91,9 @@ def plot_roc_curves(recon_path: str, dist_path: str, save_path: str):
             fpr, tpr, _ = roc_curve(y_true, y_score)
             roc_auc = auc(fpr, tpr)
 
-            label_text = LABEL_MAP.get((name, normal_cls, anom_cls), f"{name} ({normal_cls} vs {anom_cls})")
-            label = f"{label_text} (AUC = {roc_auc:.4f})"
-            plt.plot(fpr, tpr, label=label, color=color, linestyle=ls)
+            legend_text = LEGEND_MAP.get((name, normal_cls, anom_cls), f"{name} ({normal_cls} vs {anom_cls})")
+            legend = f"{legend_text} (AUC = {roc_auc:.4f})"
+            plt.plot(fpr, tpr, label=legend, color=color, linestyle=ls)
 
     # plot
     plt.plot([0, 1], [0, 1], linestyle="--", color='red', label="Random (AUC = 0.50)")
