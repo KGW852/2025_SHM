@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-WIDTH_MM = 80
+WIDTH_MM = 78
 HEIGHT_MM = 150
 WIDTH_IN = WIDTH_MM / 25.4
 HEIGHT_IN = HEIGHT_MM / 25.4
@@ -57,7 +57,7 @@ def plot_umap(csv_dir, save_dir):
 
     # subplot
     n_plots = len(MAP_CONFIGS)
-    fig, axes = plt.subplots(n_plots, 1, sharex=False, sharey=False)
+    fig, axes = plt.subplots(n_plots, 1, figsize=plt.rcParams["figure.figsize"])
 
     for idx, (fname, title) in enumerate(MAP_CONFIGS.values()):
         ax = axes[idx]
@@ -68,27 +68,28 @@ def plot_umap(csv_dir, save_dir):
         df = _read_umap_csv(csv_path)
         class_ids = sorted(df.iloc[:, 2].unique())  # e.g. [0, 2, 18]
 
-        for cid in enumerate(class_ids):
+        for cid in class_ids:
             color, marker = COLOR_MAP[cid], MARKER_MAP[cid]
             sub           = df[df.iloc[:, 2] == cid]
 
-        # legend
-        legend = LEGEND_MAP.get(cid, f'class {cid}')
+            # legend
+            legend = LEGEND_MAP.get(cid, f'class {cid}')
 
-        # subplot scatter
-        ax.scatter(
-                sub.iloc[:, 0], sub.iloc[:, 1], marker=marker, 
-                facecolors='none' if marker in ['o','s'] else color,
-                edgecolors=color, linewidths=0.4, s=6
-            )
+            # subplot scatter
+            ax.scatter(
+                    sub.iloc[:, 0], sub.iloc[:, 1], marker=marker, 
+                    facecolors='none' if marker in ['o','s'] else color,
+                    edgecolors=color, linewidths=0.4, s=6, label=legend
+                )
         
         # subplot layour
+        ax.legend(frameon=False)
         ax.grid(True, which='both', linestyle='--')
         ax.tick_params(axis='x', pad=0)
         ax.set_title(title, loc='center', pad=0, y=-0.15)
     
     # plot setting
-    fig.tight_layout(pad=0.3)
+    fig.tight_layout(pad=0.0, h_pad=0.75)
     fig.savefig(save_path, bbox_inches="tight")
     plt.close(fig)
     print(f"Figure saved: {os.path.relpath(save_path)}")
