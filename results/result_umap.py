@@ -31,16 +31,16 @@ plt.rcParams.update({
 
 # (filename, subplot title) in the desired order
 MAP_CONFIGS = {
-    'enc_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch0.csv', '(a) Before DA'),
-    'ae_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch5.csv', '(b) Before DA'),
-    'da_after': ('v3.2.4/umap_s2(18)_encoder_epoch30.csv', '(c) After DA')
+    'enc_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch0.csv', '(a)'),
+    'ae_only': ('v3.0_resnet_ae/umap_s2(18)_encoder_epoch5.csv', '(b)'),
+    'da_after': ('v3.2.4/umap_s2(18)_encoder_epoch30.csv', '(c)')
 }
 COLOR_MAP  = {0: '#000000', 2: '#d62728', 18: '#1f77b4'}
 MARKER_MAP = {0: 'o', 2: 'x', 18: 's'}
 
 LEGEND_MAP = {
     0 : "FEM (Normal)",
-    18: "18yr-measured (Normal)",
+    18: "2018-measured (Normal)",
     2 : "FEM (Anomaly)",
 }
 

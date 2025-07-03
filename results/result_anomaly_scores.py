@@ -45,8 +45,8 @@ LEGEND_MAP = {
     ("Recon",    18, 2): "Metal Noise vs. Pneumonia",
     ("Recon",    23, 2): "Device-B vs. Pneumonia",
     ("Distance",  0, 2): "FEM-based",
-    ("Distance", 18, 2): "18yr-measured",
-    ("Distance", 23, 2): "24yr-measured",
+    ("Distance", 18, 2): "2018-measured",
+    ("Distance", 23, 2): "2024-measured",
 }
 
 def _read_anomaly_csv(path: str) -> pd.DataFrame:
@@ -113,8 +113,8 @@ def plot_roc_curves(recon_path: str, dist_path: str, save_path: str):
 
 if __name__ == "__main__":
     recon_file = None
-    #recon_file = "./results/scores/csv/v3.2.4/s2(all)_scores_epoch30_recon.csv"
-    dist_file = "./results/scores/csv/v3.2.4/s2(all)_scores_epoch30_distance.csv"
-    output_file = "./results/scores/figure/v3.2.4/s2(all)_auc_roc_curves_final.png"
+    #recon_file = "./results/anomaly scores/csv/v3.2.4/s2(all)_scores_epoch30_recon.csv"
+    dist_file = "./results/anomaly scores/csv/v3.2.4/s2(all)_scores_epoch30_distance.csv"
+    output_file = "./results/anomaly scores/figure/v3.2.4/s2(all)_auc_roc_curves_final.png"
 
     plot_roc_curves(recon_path=recon_file, dist_path=dist_file, save_path=output_file)
